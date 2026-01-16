@@ -1,25 +1,48 @@
 # Squared Setup Guide
 
+## Quick Start
+
+1. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+2. **Set up environment variables** - Create a `.env.local` file:
+   ```env
+   NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
+   OPENAI_API_KEY=your_openai_api_key
+   ```
+
+3. **Run database migration** - See Step 2 below
+
+4. **Create storage bucket** - See Step 3 below
+
+5. **Start development server:**
+   ```bash
+   npm run dev
+   ```
+
 ## Step 1: Environment Variables
 
 Create a `.env.local` file in the root directory with the following content:
 
 ```env
-NEXT_PUBLIC_SUPABASE_URL=https://omuavzmycthzgwrxuzsc.supabase.co
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_EhQJp15ZpKz-giAHEUHU6g_Rz6IKEWG
-OPENAI_API_KEY=your_openai_api_key_here
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
+OPENAI_API_KEY=your_openai_api_key
 ```
 
 **Important Notes:**
 - The code expects `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (Supabase's new publishable key format)
-- Replace `your_openai_api_key_here` with your actual OpenAI API key
+- Replace the placeholder values with your actual credentials
 - You can find your publishable key in Supabase Dashboard → Settings → API → Publishable key
 
 ## Step 2: Run Database Migration
 
 ### Option A: Using Supabase Dashboard (Recommended)
 
-1. Go to your Supabase project dashboard: https://supabase.com/dashboard/project/omuavzmycthzgwrxuzsc
+1. Go to your Supabase project dashboard
 2. Navigate to **SQL Editor** in the left sidebar
 3. Click **New Query**
 4. Copy the entire contents of `supabase/migrations/001_initial_schema.sql`
@@ -32,8 +55,8 @@ OPENAI_API_KEY=your_openai_api_key_here
 If you have the Supabase CLI installed:
 
 ```bash
-# Link your project
-supabase link --project-ref omuavzmycthzgwrxuzsc
+# Link your project (replace with your project ref)
+supabase link --project-ref your-project-ref
 
 # Run the migration
 supabase db push
@@ -110,6 +133,20 @@ npm run dev
 ```
 
 The app should now be running at `http://localhost:3000`
+
+## Production Deployment
+
+### Vercel Deployment
+
+1. Push your code to GitHub/GitLab/Bitbucket
+2. Go to [vercel.com](https://vercel.com) and import your repository
+3. Add environment variables in Vercel project settings:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+   - `OPENAI_API_KEY`
+4. Deploy - Vercel will automatically detect Next.js and build
+
+The `vercel.json` file is already configured with proper PWA headers and caching strategies.
 
 ## Troubleshooting
 

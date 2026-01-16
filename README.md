@@ -1,44 +1,71 @@
 # Squared
 
-A minimalist, AI-powered PWA for trip expense tracking.
-
-## Setup
-
-1. Install dependencies:
-```bash
-npm install
-```
-
-2. Set up environment variables in `.env.local`:
-```
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
-OPENAI_API_KEY=your_openai_api_key
-```
-
-3. Set up Supabase:
-   - Create a new Supabase project
-   - Run the migration in `supabase/migrations/001_initial_schema.sql`
-   - Create a storage bucket named `receipts` with public read access
-
-4. Run the development server:
-```bash
-npm run dev
-```
+A minimalist, AI-powered Progressive Web App for tracking group trip expenses. Split bills effortlessly with natural language input, receipt OCR, and real-time collaboration.
 
 ## Features
 
-- **Quick-Add**: Natural language transaction entry with AI parsing
-- **Receipt OCR**: Snap a photo of a receipt for automatic extraction
-- **Live Feed**: Real-time transaction updates
-- **Settlement**: Optimal path algorithm for debt resolution
-- **PWA**: Installable as a native app**
+### 🤖 AI-Powered Transaction Entry
+- **Natural Language Parsing**: Type transactions in plain English like "Dinner $80 split equally" or "Groceries $124.50, Alice paid"
+- **Receipt OCR**: Snap a photo of a receipt and automatically extract line items, amounts, and categories
+- **Smart Allocation**: AI intelligently assigns receipt items to specific people when detected
+
+### 📊 Comprehensive Ledger
+- **Search & Filter**: Quickly find transactions by description, payer, or amount
+- **CSV Export**: Export all transactions with date/time, payer, amount, and split type for spreadsheet analysis
+- **Real-time Updates**: See transactions appear instantly as they're added by any group member
+
+### ✂️ Flexible Splitting
+- **Equal Split**: Default to splitting expenses equally among all members
+- **Custom Splits**: Manually assign amounts per person or use natural language ("Alice pays $20, Bob pays $15, rest split equally")
+- **Receipt Item Allocation**: For receipts, assign individual line items to specific people
+
+### 💰 Smart Settlement
+- **Optimal Debt Resolution**: Advanced algorithm calculates the minimum number of transactions needed to settle all debts
+- **Visual Settlement View**: See exactly who owes whom and how much
+
+### 📱 Progressive Web App
+- **Installable**: Add to home screen on iOS and Android
+- **Offline Capable**: Core features work without internet connection
+- **Native Feel**: Standalone app experience with custom theme and icons
+
+### 🎨 Beautiful UI
+- **Minimalist Design**: Clean, serif typography with subtle animations
+- **Real-time Feed**: Live transaction updates with smooth transitions
+- **Category Analytics**: Visualize spending by category with interactive charts
 
 ## Tech Stack
 
-- Next.js 14 (App Router)
-- TypeScript
-- Tailwind CSS
-- Framer Motion
-- Supabase (PostgreSQL, Storage, Realtime)
-- OpenAI GPT-4o-mini
+- **Framework**: Next.js 14 (App Router) with TypeScript
+- **Styling**: Tailwind CSS with custom design system
+- **Animations**: Framer Motion
+- **Database**: Supabase (PostgreSQL with real-time subscriptions)
+- **Storage**: Supabase Storage for receipt images
+- **AI**: OpenAI GPT-4o-mini for transaction parsing and OCR
+- **PWA**: next-pwa for service worker and offline support
+- **Charts**: Recharts for spending visualizations
+
+## Key Components
+
+- **QuickAdd**: Natural language transaction input with AI parsing
+- **CameraButton**: Receipt photo capture with OCR processing
+- **LiveFeed**: Real-time transaction ledger with search and export
+- **TransactionEditForm**: Enhanced editor with receipt line item allocation and custom split editing
+- **SettlementView**: Optimal debt resolution visualization
+- **SpendingStats**: Category-based spending analytics with pie charts
+
+## Getting Started
+
+See [SETUP.md](./SETUP.md) for detailed installation and configuration instructions.
+
+## Development
+
+```bash
+npm install
+npm run dev
+```
+
+Visit `http://localhost:3000` to see the app.
+
+## Deployment
+
+Squared is optimized for deployment on Vercel. See [SETUP.md](./SETUP.md) for production deployment details.
