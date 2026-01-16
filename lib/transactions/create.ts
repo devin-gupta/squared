@@ -1,0 +1,105 @@
+import { supabase } from '../supabase/client'
+import { TransactionParsed } from '@/types/transaction'
+import { addMember } from '../trips/addMember'
+
+export async function createTransaction(
+  tripId: string,
+  parsed: TransactionParsed,
+  receiptUrl?: string | null
+): Promise<{ transactionId: string; addedMember?: { id: string; name: string } }> {
+  // Get all members for this trip
+  const { data: members, error: membersError } = await supabase
+    .from('trip_members')
+    .select('id, display_name')
+    .eq('trip_id', tripId)
+
+  if (membersError || !members) {
+    throw new Error('Failed to fetch trip members')
+  }
+
+  // Find payer ID - auto-add if not found
+  let payerId: string
+  let addedMember: { id: string; name: string } | undefined
+
+  if (parsed.payer_name) {
+    let payer = members.find((m) => m.display_name === parsed.payer_name)
+    
+    if (!payer) {
+      // Auto-add new member
+      try {
+        const newMember = await addMember(tripId, parsed.payer_name)
+        payer = newMember
+        addedMember = {
+          id: newMember.id,
+          name: newMember.display_name,
+        }
+      } catch (error) {
+        // If auto-add fails, fall back to first member
+        console.error('Failed to auto-add member:', error)
+        payer = members[0]
+      }
+    }
+    
+    payerId = payer.id
+  } else {
+    // Default to first member (or could use current user)
+    payerId = members[0].id
+  }
+
+  // Create transaction (finalize immediately for v1)
+  const { data: transaction, error: txError } = await supabase
+    .from('transactions')
+    .insert({
+      trip_id: tripId,
+      description: parsed.description,
+      total_amount: parsed.total_amount,
+      payer_id: payerId,
+      split_type: parsed.split_type,
+      receipt_url: receiptUrl || null,
+      line_items: parsed.line_items || null,
+      status: 'finalized', // Finalize immediately for v1
+    })
+    .select()
+    .single()
+
+  if (txError) {
+    throw new Error(`Failed to create transaction: ${txError.message}`)
+  }
+
+  // If new member was added, add it to members array for adjustments
+  if (addedMember) {
+    members.push(addedMember)
+  }
+
+  // Create adjustments if custom split
+  if (parsed.split_type === 'custom' && parsed.adjustments && parsed.adjustments.length > 0) {
+    const adjustmentInserts = parsed.adjustments
+      .map((adj) => {
+        const member = members.find(
+          (m) => m.display_name === adj.user_name
+        )
+        if (!member) return null
+        return {
+          transaction_id: transaction.id,
+          member_id: member.id,
+          amount: adj.amount,
+        }
+      })
+      .filter((adj): adj is NonNullable<typeof adj> => adj !== null)
+
+    if (adjustmentInserts.length > 0) {
+      const { error: adjError } = await supabase
+        .from('transaction_adjustments')
+        .insert(adjustmentInserts)
+
+      if (adjError) {
+        console.error('Failed to create adjustments:', adjError)
+      }
+    }
+  }
+
+  return {
+    transactionId: transaction.id,
+    addedMember,
+  }
+}

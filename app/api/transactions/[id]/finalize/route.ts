@@ -1,0 +1,28 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { supabase } from '@/lib/supabase/client'
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const transactionId = params.id
+
+    const { error } = await supabase
+      .from('transactions')
+      .update({ status: 'finalized' })
+      .eq('id', transactionId)
+
+    if (error) {
+      throw new Error(`Failed to finalize transaction: ${error.message}`)
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Error finalizing transaction:', error)
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to finalize transaction' },
+      { status: 500 }
+    )
+  }
+}
