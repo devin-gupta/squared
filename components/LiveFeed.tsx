@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { useRealtimeTransactions } from '@/hooks/useRealtimeTransactions'
 import TransactionCard from './TransactionCard'
 import TransactionEditForm from './TransactionEditForm'
-import { Transaction } from '@/types/transaction'
+import { Transaction, LineItem } from '@/types/transaction'
 import { supabase } from '@/lib/supabase/client'
 
 interface LiveFeedProps {
@@ -16,6 +16,8 @@ export default function LiveFeed({ tripId }: LiveFeedProps) {
   const { transactions, loading } = useRealtimeTransactions(tripId)
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   const [memberNames, setMemberNames] = useState<{ id: string; name: string }[]>([])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
 
   // Load member names for editing
   useEffect(() => {
@@ -32,14 +34,84 @@ export default function LiveFeed({ tripId }: LiveFeedProps) {
     }
   }, [tripId])
 
-  const handleEdit = async (data: Partial<Transaction>) => {
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
+
+  // Filter transactions based on search
+  const filteredTransactions = useMemo(() => {
+    if (!debouncedSearchQuery) return transactions
+    const query = debouncedSearchQuery.toLowerCase()
+    return transactions.filter((t) => {
+      const descriptionMatch = t.description.toLowerCase().includes(query)
+      const payerMatch = (t.payer as any)?.display_name?.toLowerCase().includes(query)
+      return descriptionMatch || payerMatch
+    })
+  }, [transactions, debouncedSearchQuery])
+
+  // Export to CSV
+  const exportToCSV = useCallback(() => {
+    const headers = ['Date/Time', 'Description', 'Payer', 'Amount', 'Split Type']
+    const rows = filteredTransactions.map((t) => {
+      const date = new Date(t.created_at)
+      const formattedDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}:${String(date.getSeconds()).padStart(2, '0')}`
+      return [
+        formattedDate,
+        t.description,
+        (t.payer as any)?.display_name || 'Unknown',
+        t.total_amount.toString(),
+        t.split_type,
+      ]
+    })
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')),
+    ].join('\n')
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `transactions-${new Date().toISOString().split('T')[0]}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }, [filteredTransactions])
+
+  const handleEdit = async (
+    data: Partial<Transaction> & {
+      lineItems?: LineItem[]
+      adjustments?: Array<{ memberId: string; amount: number }>
+    }
+  ) => {
     if (!editingTransaction) return
 
     try {
+      const updateData: any = {
+        description: data.description,
+        totalAmount: data.total_amount,
+        payerId: data.payer_id,
+        splitType: data.split_type,
+      }
+
+      if (data.lineItems !== undefined) {
+        updateData.lineItems = data.lineItems
+      }
+
+      if (data.adjustments !== undefined) {
+        updateData.adjustments = data.adjustments
+      }
+
       const response = await fetch(`/api/transactions/${editingTransaction.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify(updateData),
       })
 
       if (!response.ok) {
@@ -94,9 +166,41 @@ export default function LiveFeed({ tripId }: LiveFeedProps) {
   return (
     <>
       <div className="min-h-screen px-6 py-8">
-        <h1 className="text-3xl font-serif font-bold text-accent mb-8">Ledger</h1>
+        <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <h1 className="text-3xl font-serif font-bold text-accent">Ledger</h1>
+          <div className="flex gap-3 items-center">
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                placeholder="Search transactions..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full px-4 py-2 bg-transparent border-b-2 border-accent/20 text-accent placeholder-accent/40 focus:outline-none focus:border-accent"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-accent/60 hover:text-accent"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+            <button
+              onClick={exportToCSV}
+              className="px-4 py-2 border border-accent/20 text-accent rounded-full hover:bg-accent/5 text-sm whitespace-nowrap"
+            >
+              Export CSV
+            </button>
+          </div>
+        </div>
+        {searchQuery && (
+          <div className="mb-4 text-sm text-accent/60">
+            Showing {filteredTransactions.length} of {transactions.length} transactions
+          </div>
+        )}
         <div className="space-y-2">
-          {transactions.map((transaction) => (
+          {filteredTransactions.map((transaction) => (
             <TransactionCard
               key={transaction.id}
               transaction={transaction as any}
@@ -106,12 +210,18 @@ export default function LiveFeed({ tripId }: LiveFeedProps) {
             />
           ))}
         </div>
+        {filteredTransactions.length === 0 && transactions.length > 0 && (
+          <div className="text-center py-8 text-accent/60">
+            No transactions match your search
+          </div>
+        )}
       </div>
 
       {editingTransaction && memberNames.length > 0 && (
         <TransactionEditForm
           transaction={editingTransaction as any}
           memberNames={memberNames}
+          tripId={tripId}
           onSubmit={handleEdit}
           onCancel={() => setEditingTransaction(null)}
         />

@@ -20,7 +20,11 @@ export function useRealtimeTransactions(tripId: string | null) {
         .from('transactions')
         .select(`
           *,
-          payer:trip_members!transactions_payer_id_fkey(display_name)
+          payer:trip_members!transactions_payer_id_fkey(display_name),
+          adjustments:transaction_adjustments(
+            *,
+            member:trip_members!transaction_adjustments_member_id_fkey(id, display_name)
+          )
         `)
         .eq('trip_id', tripId)
         .order('created_at', { ascending: false })
@@ -51,7 +55,11 @@ export function useRealtimeTransactions(tripId: string | null) {
               .from('transactions')
               .select(`
                 *,
-                payer:trip_members!transactions_payer_id_fkey(display_name)
+                payer:trip_members!transactions_payer_id_fkey(display_name),
+                adjustments:transaction_adjustments(
+                  *,
+                  member:trip_members!transaction_adjustments_member_id_fkey(id, display_name)
+                )
               `)
               .eq('id', payload.new.id)
               .single()

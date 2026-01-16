@@ -18,6 +18,15 @@ export async function PUT(
 
     const transactionId = params.id
 
+    // Get current transaction to check split_type
+    const { data: currentTransaction } = await supabase
+      .from('transactions')
+      .select('split_type')
+      .eq('id', transactionId)
+      .single()
+
+    const currentSplitType = currentTransaction?.split_type
+
     // Update transaction
     const updateData: any = {
       updated_at: new Date().toISOString(),
@@ -40,8 +49,10 @@ export async function PUT(
       throw new Error(`Failed to update transaction: ${txError.message}`)
     }
 
-    // Update adjustments if custom split
-    if (splitType === 'custom' && adjustments) {
+    const finalSplitType = splitType !== undefined ? splitType : currentSplitType
+
+    // Update adjustments based on split type
+    if (finalSplitType === 'custom' && adjustments !== undefined) {
       // Delete existing adjustments
       await supabase
         .from('transaction_adjustments')
@@ -64,6 +75,12 @@ export async function PUT(
           console.error('Failed to update adjustments:', adjError)
         }
       }
+    } else if (finalSplitType === 'equal' && (splitType !== undefined || adjustments !== undefined)) {
+      // If changing to equal split or adjustments were explicitly set to empty, delete all adjustments
+      await supabase
+        .from('transaction_adjustments')
+        .delete()
+        .eq('transaction_id', transactionId)
     }
 
     return NextResponse.json({ transaction })
