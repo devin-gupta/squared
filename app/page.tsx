@@ -111,7 +111,7 @@ export default function Home() {
 
     if (membersData) {
       setMembers(membersData as TripMember[])
-      setMemberNames(membersData.map((m) => m.display_name))
+      setMemberNames(membersData.map((m: { display_name: string }) => m.display_name))
     }
   }
 
@@ -382,6 +382,7 @@ export default function Home() {
         <TransactionEditForm
           transaction={editingTransaction as any}
           memberNames={members.map((m) => ({ id: m.id, name: m.display_name }))}
+          tripId={tripId}
           onSubmit={handleEditTransaction}
           onCancel={() => setEditingTransaction(null)}
         />

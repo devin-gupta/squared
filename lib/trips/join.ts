@@ -2,8 +2,8 @@ import { supabase } from '../supabase/client'
 
 export async function joinTrip(inviteCode: string, displayName: string): Promise<string> {
   // Find trip by invite code
-  const { data: trip, error: tripError } = await supabase
-    .from('trips')
+  const { data: trip, error: tripError } = await (supabase
+    .from('trips') as any)
     .select('id')
     .eq('invite_code', inviteCode.toUpperCase())
     .single()
@@ -13,22 +13,24 @@ export async function joinTrip(inviteCode: string, displayName: string): Promise
   }
 
   // Check if member already exists
-  const { data: existingMember } = await supabase
-    .from('trip_members')
+  const { data: existingMember } = await (supabase
+    .from('trip_members') as any)
     .select('id')
-    .eq('trip_id', trip.id)
+    .eq('trip_id', (trip as { id: string }).id)
     .eq('display_name', displayName)
     .single()
 
+  const typedTrip = trip as { id: string }
+
   if (existingMember) {
-    return trip.id
+    return typedTrip.id
   }
 
   // Add member
-  const { error: memberError } = await supabase
-    .from('trip_members')
+  const { error: memberError } = await (supabase
+    .from('trip_members') as any)
     .insert({
-      trip_id: trip.id,
+      trip_id: typedTrip.id,
       display_name: displayName,
     })
 
@@ -36,5 +38,5 @@ export async function joinTrip(inviteCode: string, displayName: string): Promise
     throw new Error(`Failed to join trip: ${memberError.message}`)
   }
 
-  return trip.id
+  return typedTrip.id
 }

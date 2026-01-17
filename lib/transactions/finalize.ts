@@ -1,8 +1,8 @@
 import { supabase } from '../supabase/client'
 
 export async function finalizeTransaction(transactionId: string): Promise<void> {
-  const { error } = await supabase
-    .from('transactions')
+  const { error } = await (supabase
+    .from('transactions') as any)
     .update({ status: 'finalized' })
     .eq('id', transactionId)
 

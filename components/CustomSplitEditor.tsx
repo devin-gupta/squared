@@ -72,16 +72,16 @@ export default function CustomSplitEditor({
         const memberMap = new Map(members.map((m) => [m.name.toLowerCase(), m.id]))
 
         const parsedAdjustments = parsed.adjustments
-          .map((adj) => {
+          .map((adj: { user_name: string; amount: number }) => {
             const memberId = memberMap.get(adj.user_name.toLowerCase())
             if (!memberId) return null
             return { memberId, amount: adj.amount }
           })
-          .filter((adj): adj is { memberId: string; amount: number } => adj !== null)
+          .filter((adj: { memberId: string; amount: number } | null): adj is { memberId: string; amount: number } => adj !== null)
 
         // Fill in missing members with 0
         members.forEach((member) => {
-          if (!parsedAdjustments.find((a) => a.memberId === member.id)) {
+          if (!parsedAdjustments.find((a: { memberId: string; amount: number }) => a.memberId === member.id)) {
             parsedAdjustments.push({ memberId: member.id, amount: 0 })
           }
         })

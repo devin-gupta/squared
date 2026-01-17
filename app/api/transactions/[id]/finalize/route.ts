@@ -10,6 +10,7 @@ export async function POST(
 
     const { error } = await supabase
       .from('transactions')
+      // @ts-expect-error - Supabase type inference issue with update
       .update({ status: 'finalized' })
       .eq('id', transactionId)
 

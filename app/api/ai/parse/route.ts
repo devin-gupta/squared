@@ -21,8 +21,8 @@ export async function POST(request: NextRequest) {
         .select('display_name')
         .eq('trip_id', tripId)
 
-      if (members) {
-        memberNames = members.map((m) => m.display_name)
+      if (members && Array.isArray(members)) {
+        memberNames = members.map((m) => (m as { display_name: string }).display_name)
       }
     }
 

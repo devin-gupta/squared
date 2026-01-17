@@ -65,14 +65,15 @@ export function useRealtimeTransactions(tripId: string | null) {
               .single()
 
             if (data) {
+              const transactionData = data as any
               setTransactions((prev) => {
-                const existing = prev.findIndex((t) => t.id === data.id)
+                const existing = prev.findIndex((t) => t.id === transactionData.id)
                 if (existing >= 0) {
                   const updated = [...prev]
-                  updated[existing] = data as any
+                  updated[existing] = transactionData
                   return updated
                 } else {
-                  return [data as any, ...prev].sort(
+                  return [transactionData, ...prev].sort(
                     (a, b) =>
                       new Date(b.created_at).getTime() -
                       new Date(a.created_at).getTime()

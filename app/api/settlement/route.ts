@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     }
 
     const memberMap = new Map<string, string>()
-    members.forEach((m) => {
+    members.forEach((m: { id: string; display_name: string }) => {
       memberMap.set(m.id, m.display_name)
     })
 

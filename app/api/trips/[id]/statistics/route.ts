@@ -22,7 +22,7 @@ export async function GET(
         .single()
 
       if (member) {
-        currentUserId = member.id
+        currentUserId = (member as { id: string }).id
       }
     }
 

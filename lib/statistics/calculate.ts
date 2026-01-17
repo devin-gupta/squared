@@ -28,23 +28,31 @@ export async function calculateStatistics(
     throw new Error('Failed to fetch transactions for statistics')
   }
 
+  const typedTransactions = transactions as any[] as Transaction[]
+
   // Calculate totals
-  const totalSpent = transactions.reduce((sum, tx) => sum + parseFloat(tx.total_amount.toString()), 0)
-  const transactionCount = transactions.length
+  const totalSpent = typedTransactions.reduce((sum, tx) => {
+    const amount = typeof tx.total_amount === 'number' ? tx.total_amount : parseFloat(String(tx.total_amount))
+    return sum + amount
+  }, 0)
+  const transactionCount = typedTransactions.length
   const averagePerTransaction = transactionCount > 0 ? totalSpent / transactionCount : 0
 
   // Calculate user spending (amounts they paid)
   let userSpending = 0
   if (currentUserId) {
-    userSpending = transactions
+    userSpending = typedTransactions
       .filter((tx) => tx.payer_id === currentUserId)
-      .reduce((sum, tx) => sum + parseFloat(tx.total_amount.toString()), 0)
+      .reduce((sum, tx) => {
+        const amount = typeof tx.total_amount === 'number' ? tx.total_amount : parseFloat(String(tx.total_amount))
+        return sum + amount
+      }, 0)
   }
 
   // Calculate category breakdown
   const categoryMap = new Map<string, number>()
   
-  transactions.forEach((tx) => {
+  typedTransactions.forEach((tx) => {
     // Check line items for categories (primary source)
     if (tx.line_items && Array.isArray(tx.line_items) && tx.line_items.length > 0) {
       tx.line_items.forEach((item: any) => {

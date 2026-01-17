@@ -35,6 +35,7 @@ export async function POST(
     // Add member
     const { data: member, error } = await supabase
       .from('trip_members')
+      // @ts-expect-error - Supabase type inference issue with insert
       .insert({
         trip_id: tripId,
         display_name,

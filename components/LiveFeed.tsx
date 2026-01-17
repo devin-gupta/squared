@@ -8,6 +8,10 @@ import TransactionEditForm from './TransactionEditForm'
 import { Transaction, LineItem } from '@/types/transaction'
 import { supabase } from '@/lib/supabase/client'
 
+interface TransactionWithPayer extends Transaction {
+  payer?: { display_name: string }
+}
+
 interface LiveFeedProps {
   tripId: string | null
 }
@@ -27,8 +31,13 @@ export default function LiveFeed({ tripId }: LiveFeedProps) {
         .select('id, display_name')
         .eq('trip_id', tripId)
         .then(({ data }) => {
-          if (data) {
-            setMemberNames(data.map((m) => ({ id: m.id, name: m.display_name })))
+          if (data && Array.isArray(data)) {
+            setMemberNames(
+              data.map((m) => ({
+                id: (m as { id: string; display_name: string }).id,
+                name: (m as { id: string; display_name: string }).display_name,
+              }))
+            )
           }
         })
     }
@@ -47,8 +56,9 @@ export default function LiveFeed({ tripId }: LiveFeedProps) {
     if (!debouncedSearchQuery) return transactions
     const query = debouncedSearchQuery.toLowerCase()
     return transactions.filter((t) => {
-      const descriptionMatch = t.description.toLowerCase().includes(query)
-      const payerMatch = (t.payer as any)?.display_name?.toLowerCase().includes(query)
+      const tx = t as TransactionWithPayer
+      const descriptionMatch = tx.description.toLowerCase().includes(query)
+      const payerMatch = tx.payer?.display_name?.toLowerCase().includes(query) || false
       return descriptionMatch || payerMatch
     })
   }, [transactions, debouncedSearchQuery])
@@ -57,14 +67,15 @@ export default function LiveFeed({ tripId }: LiveFeedProps) {
   const exportToCSV = useCallback(() => {
     const headers = ['Date/Time', 'Description', 'Payer', 'Amount', 'Split Type']
     const rows = filteredTransactions.map((t) => {
-      const date = new Date(t.created_at)
+      const tx = t as TransactionWithPayer
+      const date = new Date(tx.created_at)
       const formattedDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}:${String(date.getSeconds()).padStart(2, '0')}`
       return [
         formattedDate,
-        t.description,
-        (t.payer as any)?.display_name || 'Unknown',
-        t.total_amount.toString(),
-        t.split_type,
+        tx.description,
+        tx.payer?.display_name || 'Unknown',
+        tx.total_amount.toString(),
+        tx.split_type,
       ]
     })
 

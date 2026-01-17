@@ -25,7 +25,9 @@ export async function PUT(
       .eq('id', transactionId)
       .single()
 
-    const currentSplitType = currentTransaction?.split_type
+    const currentSplitType = currentTransaction
+      ? (currentTransaction as { split_type?: 'equal' | 'custom' }).split_type
+      : undefined
 
     // Update transaction
     const updateData: any = {
@@ -40,6 +42,7 @@ export async function PUT(
 
     const { data: transaction, error: txError } = await supabase
       .from('transactions')
+      // @ts-expect-error - Supabase type inference issue with update
       .update(updateData)
       .eq('id', transactionId)
       .select()
@@ -69,7 +72,7 @@ export async function PUT(
 
         const { error: adjError } = await supabase
           .from('transaction_adjustments')
-          .insert(adjustmentInserts)
+          .insert(adjustmentInserts as any)
 
         if (adjError) {
           console.error('Failed to update adjustments:', adjError)

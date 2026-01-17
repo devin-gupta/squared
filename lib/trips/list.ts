@@ -17,7 +17,7 @@ export async function listTrips(userName?: string): Promise<Array<{
       .eq('display_name', userName)
 
     if (memberTrips && memberTrips.length > 0) {
-      const tripIds = memberTrips.map((m) => m.trip_id)
+      const tripIds = (memberTrips as Array<{ trip_id: string }>).map((m) => m.trip_id)
       query = query.in('id', tripIds)
     } else {
       return []

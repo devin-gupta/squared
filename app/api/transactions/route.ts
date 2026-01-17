@@ -26,6 +26,7 @@ export async function POST(request: NextRequest) {
     // Create transaction
     const { data: transaction, error: txError } = await supabase
       .from('transactions')
+      // @ts-expect-error - Supabase type inference issue with insert
       .insert({
         trip_id: tripId,
         description,
@@ -45,15 +46,16 @@ export async function POST(request: NextRequest) {
 
     // Create adjustments if custom split
     if (splitType === 'custom' && adjustments && adjustments.length > 0) {
+      const transactionId = (transaction as { id: string }).id
       const adjustmentInserts = adjustments.map((adj: any) => ({
-        transaction_id: transaction.id,
+        transaction_id: transactionId,
         member_id: adj.memberId,
         amount: adj.amount,
       }))
 
-      const { error: adjError } = await supabase
-        .from('transaction_adjustments')
-        .insert(adjustmentInserts)
+        const { error: adjError } = await supabase
+          .from('transaction_adjustments')
+          .insert(adjustmentInserts as any)
 
       if (adjError) {
         console.error('Failed to create adjustments:', adjError)

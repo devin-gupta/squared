@@ -14,8 +14,8 @@ export async function createTrip(displayName: string, tripName?: string): Promis
   const inviteCode = generateInviteCode()
 
   // Create trip
-  const { data: trip, error: tripError } = await supabase
-    .from('trips')
+  const { data: trip, error: tripError } = await (supabase
+    .from('trips') as any)
     .insert({
       name: tripName || `Trip ${new Date().toLocaleDateString()}`,
       invite_code: inviteCode,
@@ -29,8 +29,8 @@ export async function createTrip(displayName: string, tripName?: string): Promis
   }
 
   // Add creator as first member
-  const { data: member, error: memberError } = await supabase
-    .from('trip_members')
+  const { data: member, error: memberError } = await (supabase
+    .from('trip_members') as any)
     .insert({
       trip_id: trip.id,
       display_name: displayName,

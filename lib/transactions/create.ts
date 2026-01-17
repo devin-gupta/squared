@@ -13,22 +13,24 @@ export async function createTransaction(
     .select('id, display_name')
     .eq('trip_id', tripId)
 
-  if (membersError || !members) {
+  if (membersError || !members || !Array.isArray(members)) {
     throw new Error('Failed to fetch trip members')
   }
+
+  const typedMembers = members as Array<{ id: string; display_name: string }>
 
   // Find payer ID - auto-add if not found
   let payerId: string
   let addedMember: { id: string; name: string } | undefined
 
   if (parsed.payer_name) {
-    let payer = members.find((m) => m.display_name === parsed.payer_name)
+    let payer: { id: string; display_name: string } | undefined = typedMembers.find((m) => m.display_name === parsed.payer_name)
     
     if (!payer) {
       // Auto-add new member
       try {
         const newMember = await addMember(tripId, parsed.payer_name)
-        payer = newMember
+        payer = newMember as { id: string; display_name: string }
         addedMember = {
           id: newMember.id,
           name: newMember.display_name,
@@ -36,19 +38,19 @@ export async function createTransaction(
       } catch (error) {
         // If auto-add fails, fall back to first member
         console.error('Failed to auto-add member:', error)
-        payer = members[0]
+        payer = typedMembers[0]
       }
     }
     
-    payerId = payer.id
+    payerId = payer?.id || typedMembers[0].id
   } else {
     // Default to first member (or could use current user)
-    payerId = members[0].id
+    payerId = typedMembers[0].id
   }
 
   // Create transaction (finalize immediately for v1)
-  const { data: transaction, error: txError } = await supabase
-    .from('transactions')
+  const { data: transaction, error: txError } = await (supabase
+    .from('transactions') as any)
     .insert({
       trip_id: tripId,
       description: parsed.description,
@@ -68,14 +70,14 @@ export async function createTransaction(
 
   // If new member was added, add it to members array for adjustments
   if (addedMember) {
-    members.push(addedMember)
+    typedMembers.push({ id: addedMember.id, display_name: addedMember.name })
   }
 
   // Create adjustments if custom split
   if (parsed.split_type === 'custom' && parsed.adjustments && parsed.adjustments.length > 0) {
     const adjustmentInserts = parsed.adjustments
       .map((adj) => {
-        const member = members.find(
+        const member = typedMembers.find(
           (m) => m.display_name === adj.user_name
         )
         if (!member) return null
@@ -88,8 +90,8 @@ export async function createTransaction(
       .filter((adj): adj is NonNullable<typeof adj> => adj !== null)
 
     if (adjustmentInserts.length > 0) {
-      const { error: adjError } = await supabase
-        .from('transaction_adjustments')
+      const { error: adjError } = await (supabase
+        .from('transaction_adjustments') as any)
         .insert(adjustmentInserts)
 
       if (adjError) {
