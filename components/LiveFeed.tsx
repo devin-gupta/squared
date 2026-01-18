@@ -17,7 +17,7 @@ interface LiveFeedProps {
 }
 
 export default function LiveFeed({ tripId }: LiveFeedProps) {
-  const { transactions, loading } = useRealtimeTransactions(tripId)
+  const { transactions, loading, removeTransaction } = useRealtimeTransactions(tripId)
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   const [memberNames, setMemberNames] = useState<{ id: string; name: string }[]>([])
   const [searchQuery, setSearchQuery] = useState('')
@@ -119,9 +119,19 @@ export default function LiveFeed({ tripId }: LiveFeedProps) {
         updateData.adjustments = data.adjustments
       }
 
+      // Get auth token from Supabase session
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        alert('Authentication required')
+        return
+      }
+
       const response = await fetch(`/api/transactions/${editingTransaction.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify(updateData),
       })
 
@@ -142,13 +152,26 @@ export default function LiveFeed({ tripId }: LiveFeedProps) {
     }
 
     try {
+      // Get auth token from Supabase session
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        alert('Authentication required')
+        return
+      }
+
       const response = await fetch(`/api/transactions/${transactionId}`, {
         method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
       })
 
       if (!response.ok) {
         throw new Error('Failed to delete transaction')
       }
+
+      // Optimistically remove transaction from UI immediately
+      removeTransaction(transactionId)
     } catch (error) {
       console.error('Error deleting transaction:', error)
       alert('Failed to delete transaction')

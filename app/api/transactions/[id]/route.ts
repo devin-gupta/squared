@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase/client'
+import { createClient } from '@supabase/supabase-js'
+import { Database } from '@/lib/supabase/types'
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabasePublishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
 
 export async function PUT(
   request: NextRequest,
@@ -18,6 +22,47 @@ export async function PUT(
 
     const resolvedParams = await Promise.resolve(params)
     const transactionId = resolvedParams.id
+
+    // Get authenticated user
+    const authHeader = request.headers.get('authorization')
+    if (!authHeader) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+
+    const token = authHeader.replace('Bearer ', '')
+    
+    // Verify token and get user
+    const tempClient = createClient<Database>(supabaseUrl, supabasePublishableKey)
+    const { data: { user }, error: authError } = await tempClient.auth.getUser(token)
+
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Invalid authentication' },
+        { status: 401 }
+      )
+    }
+    
+    // Create authenticated Supabase client with session
+    const supabase = createClient<Database>(supabaseUrl, supabasePublishableKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+      global: {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    })
+    
+    // Set the session explicitly
+    await supabase.auth.setSession({
+      access_token: token,
+      refresh_token: '', // Not needed for server-side
+    } as any)
 
     // Get current transaction to check split_type
     const { data: currentTransaction, error: fetchError } = await supabase
@@ -48,14 +93,18 @@ export async function PUT(
     if (lineItems !== undefined) updateData.line_items = lineItems
 
     // Update transaction
-    const { error: updateError } = await supabase
+    const updateResult = await supabase
       .from('transactions')
       // @ts-expect-error - Supabase type inference issue with update
       .update(updateData)
       .eq('id', transactionId)
 
-    if (updateError) {
-      throw new Error(`Failed to update transaction: ${updateError.message}`)
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/473fdca0-8c87-48f9-a206-a717977155d0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.ts:87',message:'Update result with auth',data:{error:updateResult.error?.message,errorCode:updateResult.error?.code,data:updateResult.data,status:updateResult.status},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
+
+    if (updateResult.error) {
+      throw new Error(`Failed to update transaction: ${updateResult.error.message}`)
     }
 
     // Fetch updated transaction
@@ -121,13 +170,66 @@ export async function DELETE(
     const resolvedParams = await Promise.resolve(params)
     const transactionId = resolvedParams.id
 
-    const { error } = await supabase
+    // Get authenticated user
+    const authHeader = request.headers.get('authorization')
+    if (!authHeader) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+
+    const token = authHeader.replace('Bearer ', '')
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/473fdca0-8c87-48f9-a206-a717977155d0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.ts:161',message:'DELETE handler with auth',data:{transactionId,hasToken:!!token,tokenLength:token.length,tokenPrefix:token.substring(0,20)},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    
+    // Verify token and get user
+    const tempClient = createClient<Database>(supabaseUrl, supabasePublishableKey)
+    const { data: { user }, error: authError } = await tempClient.auth.getUser(token)
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/473fdca0-8c87-48f9-a206-a717977155d0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.ts:168',message:'Token verification',data:{hasUser:!!user,userId:user?.id,authError:authError?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Invalid authentication' },
+        { status: 401 }
+      )
+    }
+    
+    // Create authenticated Supabase client with session
+    const supabase = createClient<Database>(supabaseUrl, supabasePublishableKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+      global: {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    })
+    
+    // Set the session explicitly
+    await supabase.auth.setSession({
+      access_token: token,
+      refresh_token: '', // Not needed for server-side
+    } as any)
+
+    const deleteResult = await supabase
       .from('transactions')
       .delete()
       .eq('id', transactionId)
 
-    if (error) {
-      throw new Error(`Failed to delete transaction: ${error.message}`)
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/473fdca0-8c87-48f9-a206-a717977155d0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.ts:162',message:'Delete result with auth',data:{error:deleteResult.error?.message,errorCode:deleteResult.error?.code,data:deleteResult.data,status:deleteResult.status},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+
+    if (deleteResult.error) {
+      throw new Error(`Failed to delete transaction: ${deleteResult.error.message}`)
     }
 
     return NextResponse.json({ success: true })

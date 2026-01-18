@@ -1,0 +1,12 @@
+{"location":"route.ts:124","message":"DELETE handler entry","data":{"transactionId":"6737a8c4-a260-4b17-87fb-1ba76afc1375"},"timestamp":1768720498039,"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}
+{"location":"route.ts:128","message":"Auth session check","data":{"hasSession":false},"timestamp":1768720498040,"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}
+{"location":"route.ts:134","message":"Delete result","data":{"data":null,"status":204},"timestamp":1768720498113,"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}
+{"location":"route.ts:141","message":"DELETE handler success","data":{"transactionId":"6737a8c4-a260-4b17-87fb-1ba76afc1375"},"timestamp":1768720498114,"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}
+{"location":"route.ts:124","message":"DELETE handler entry","data":{"transactionId":"6737a8c4-a260-4b17-87fb-1ba76afc1375"},"timestamp":1768720519467,"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}
+{"location":"route.ts:128","message":"Auth session check","data":{"hasSession":false},"timestamp":1768720519469,"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}
+{"location":"route.ts:134","message":"Delete result","data":{"data":null,"status":204},"timestamp":1768720519555,"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}
+{"location":"route.ts:141","message":"DELETE handler success","data":{"transactionId":"6737a8c4-a260-4b17-87fb-1ba76afc1375"},"timestamp":1768720519555,"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}
+{"location":"route.ts:161","message":"DELETE handler with auth","data":{"transactionId":"dac720eb-02bc-44a3-b5e8-a762b75c8d68","hasToken":true,"tokenLength":927,"tokenPrefix":"eyJhbGciOiJFUzI1NiIs"},"timestamp":1768720829364,"sessionId":"debug-session","runId":"post-fix","hypothesisId":"A"}
+{"location":"route.ts:168","message":"Token verification","data":{"hasUser":true,"userId":"74c2fd64-1176-4a4c-9c89-02b7d0661a83"},"timestamp":1768720829584,"sessionId":"debug-session","runId":"post-fix","hypothesisId":"A"}
+{"location":"route.ts:162","message":"Delete result with auth","data":{"data":null,"status":204},"timestamp":1768720829655,"sessionId":"debug-session","runId":"post-fix","hypothesisId":"A"}
+{"location":"route.ts:87","message":"Update result with auth","data":{"data":null,"status":204},"timestamp":1768720954015,"sessionId":"debug-session","runId":"post-fix","hypothesisId":"B"}

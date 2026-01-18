@@ -17,7 +17,7 @@ export default function RecentActivity({
   onEdit,
   onDelete,
 }: RecentActivityProps) {
-  const { transactions, loading } = useRealtimeTransactions(tripId)
+  const { transactions, loading, removeTransaction } = useRealtimeTransactions(tripId)
 
   const recentTransactions = transactions.slice(0, limit)
 
@@ -44,7 +44,17 @@ export default function RecentActivity({
             key={transaction.id}
             transaction={transaction as any}
             onEdit={() => onEdit?.(transaction)}
-            onDelete={() => onDelete?.(transaction.id)}
+            onDelete={async () => {
+              // Call the actual delete handler first
+              try {
+                await onDelete?.(transaction.id)
+                // Remove from UI after successful delete
+                removeTransaction(transaction.id)
+              } catch (error) {
+                // If delete fails, transaction will remain in UI
+                // The error is already handled by onDelete
+              }
+            }}
             canEdit={true}
           />
         ))}

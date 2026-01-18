@@ -291,9 +291,19 @@ function HomeContent() {
     if (!editingTransaction) return
 
     try {
+      // Get auth token from Supabase session
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        alert('Authentication required')
+        return
+      }
+
       const response = await fetch(`/api/transactions/${editingTransaction.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify(data),
       })
 
@@ -314,8 +324,18 @@ function HomeContent() {
     }
 
     try {
+      // Get auth token from Supabase session
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        alert('Authentication required')
+        return
+      }
+
       const response = await fetch(`/api/transactions/${transactionId}`, {
         method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
       })
 
       if (!response.ok) {

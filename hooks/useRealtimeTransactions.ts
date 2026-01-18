@@ -8,6 +8,31 @@ export function useRealtimeTransactions(tripId: string | null) {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
 
+  const fetchTransactions = async () => {
+    if (!tripId) {
+      setLoading(false)
+      return
+    }
+
+    const { data, error } = await supabase
+      .from('transactions')
+      .select(`
+        *,
+        payer:trip_members!transactions_payer_id_fkey(display_name),
+        adjustments:transaction_adjustments(
+          *,
+          member:trip_members!transaction_adjustments_member_id_fkey(id, display_name)
+        )
+      `)
+      .eq('trip_id', tripId)
+      .order('created_at', { ascending: false })
+
+    if (!error && data) {
+      setTransactions(data as any)
+    }
+    setLoading(false)
+  }
+
   useEffect(() => {
     if (!tripId) {
       setLoading(false)
@@ -15,26 +40,6 @@ export function useRealtimeTransactions(tripId: string | null) {
     }
 
     // Initial fetch
-    const fetchTransactions = async () => {
-      const { data, error } = await supabase
-        .from('transactions')
-        .select(`
-          *,
-          payer:trip_members!transactions_payer_id_fkey(display_name),
-          adjustments:transaction_adjustments(
-            *,
-            member:trip_members!transaction_adjustments_member_id_fkey(id, display_name)
-          )
-        `)
-        .eq('trip_id', tripId)
-        .order('created_at', { ascending: false })
-
-      if (!error && data) {
-        setTransactions(data as any)
-      }
-      setLoading(false)
-    }
-
     fetchTransactions()
 
     // Subscribe to realtime changes
@@ -93,5 +98,10 @@ export function useRealtimeTransactions(tripId: string | null) {
     }
   }, [tripId])
 
-  return { transactions, loading }
+  // Expose function to manually remove a transaction (for optimistic updates)
+  const removeTransaction = (transactionId: string) => {
+    setTransactions((prev) => prev.filter((t) => t.id !== transactionId))
+  }
+
+  return { transactions, loading, refetch: fetchTransactions, removeTransaction }
 }
