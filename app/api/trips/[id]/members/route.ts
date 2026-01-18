@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase/client'
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
-    const tripId = params.id
+    const resolvedParams = await Promise.resolve(params)
+    const tripId = resolvedParams.id
     const body = await request.json()
     const { display_name } = body
 
@@ -59,12 +62,12 @@ export async function POST(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
-    const tripId = params.id
-    const { searchParams } = new URL(request.url)
-    const memberId = searchParams.get('memberId')
+    const resolvedParams = await Promise.resolve(params)
+    const tripId = resolvedParams.id
+    const memberId = request.nextUrl.searchParams.get('memberId')
 
     if (!memberId) {
       return NextResponse.json(

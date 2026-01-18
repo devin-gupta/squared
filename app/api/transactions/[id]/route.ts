@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase/client'
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
     const body = await request.json()
@@ -16,7 +16,8 @@ export async function PUT(
       adjustments,
     } = body
 
-    const transactionId = params.id
+    const resolvedParams = await Promise.resolve(params)
+    const transactionId = resolvedParams.id
 
     // Get current transaction to check split_type
     const { data: currentTransaction, error: fetchError } = await supabase
@@ -114,10 +115,11 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
-    const transactionId = params.id
+    const resolvedParams = await Promise.resolve(params)
+    const transactionId = resolvedParams.id
 
     const { error } = await supabase
       .from('transactions')

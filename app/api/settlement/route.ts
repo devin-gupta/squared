@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { calculateOptimalSettlement, calculateBalances } from '@/lib/settlement/algorithm'
 import { supabase } from '@/lib/supabase/client'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const tripId = searchParams.get('tripId')
+    const tripId = request.nextUrl.searchParams.get('tripId')
 
     if (!tripId) {
       return NextResponse.json(

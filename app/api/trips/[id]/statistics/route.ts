@@ -2,14 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { calculateStatistics } from '@/lib/statistics/calculate'
 import { supabase } from '@/lib/supabase/client'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
-    const tripId = params.id
-    const { searchParams } = new URL(request.url)
-    const userName = searchParams.get('userName')
+    const resolvedParams = await Promise.resolve(params)
+    const tripId = resolvedParams.id
+    const userName = request.nextUrl.searchParams.get('userName')
 
     // Get current user's member ID if userName provided
     let currentUserId: string | undefined

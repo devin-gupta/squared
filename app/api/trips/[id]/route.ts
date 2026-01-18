@@ -4,10 +4,11 @@ import { supabase } from '@/lib/supabase/client'
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
-    const tripId = params.id
+    const resolvedParams = await Promise.resolve(params)
+    const tripId = resolvedParams.id
 
     // Get authenticated user
     const authHeader = request.headers.get('authorization')

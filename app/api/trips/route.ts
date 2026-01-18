@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { listTrips } from '@/lib/trips/list'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const userName = searchParams.get('user_name') || undefined
-    const userId = searchParams.get('user_id') || undefined
+    const userName = request.nextUrl.searchParams.get('user_name') || undefined
+    const userId = request.nextUrl.searchParams.get('user_id') || undefined
 
     const trips = await listTrips(userName, userId)
 
