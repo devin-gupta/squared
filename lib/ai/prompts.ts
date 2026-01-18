@@ -14,7 +14,7 @@ You MUST return a JSON object with the following structure:
 Rules:
 1. ALWAYS include "description" field - use the transaction text or infer a description
 2. Extract the total amount (always in USD)
-3. Identify who paid (if mentioned by name)
+3. Identify who paid (if mentioned by name) - IMPORTANT: The payer_name MUST match one of the available member names exactly. If a name is mentioned but doesn't exactly match, try to match it to the closest available member name (e.g., "puja" → "poojagupta23", "raj" → "Rajat"). Only include payer_name if you can confidently match it to an available member.
 4. Default split is "equal" unless exceptions are mentioned
 5. If exceptions are mentioned, use "custom" split type with adjustments
 
@@ -50,14 +50,15 @@ Rules:
    - Separate alcohol from food
    - Group similar items together
    - Assign appropriate categories
-4. If receipt shows items clearly assigned to specific people (e.g., "John's beer", "Sarah's salad", items grouped by person's name, or items marked with initials), include "split_among" field with array of member names who should pay for that item
+4. If receipt shows items clearly assigned to specific people (e.g., "John's beer", "Sarah's salad", items grouped by person's name, or items marked with initials), include "split_among" field with array of member names who should pay for that item - IMPORTANT: All names in split_among MUST exactly match available member names. Match partial names or nicknames to the closest available member (e.g., "puja" → "poojagupta23").
 5. If items are grouped together visually on the receipt by person, assign them accordingly
 6. If a line item has "split_among" specified, only those people should pay for that item (others will not be charged for it)
 7. Default split is "equal" unless line items suggest otherwise
+8. If payer_name is mentioned, it MUST exactly match one of the available member names. Match partial names or nicknames to the closest available member.
 
 Examples:
-- Receipt shows "John's Beer $5.99" → line item should have split_among: ["John"]
-- Receipt has items grouped by section with names → assign split_among based on section labels
+- Receipt shows "John's Beer $5.99" → line item should have split_among: ["John"] (if "John" is in available members)
+- Receipt has items grouped by section with names → assign split_among based on section labels, matching to available members
 - Receipt has items marked with initials (e.g., "JD", "SM") → match to member names if possible
 
 Return ONLY valid JSON, no other text.`

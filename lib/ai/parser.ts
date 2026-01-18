@@ -15,7 +15,7 @@ export async function parseTransactionText(
     messages: [
       {
         role: 'system',
-        content: `${PARSE_TRANSACTION_PROMPT}\n\nAvailable member names: ${memberNames.join(', ') || 'None yet'}`,
+        content: `${PARSE_TRANSACTION_PROMPT}\n\nIMPORTANT: Available member names (payer_name MUST match one of these exactly): ${memberNames.length > 0 ? memberNames.join(', ') : 'None yet'}. If a name is mentioned in the transaction, match it to the closest available member name.`,
       },
       {
         role: 'user',
@@ -59,7 +59,7 @@ export async function parseReceiptImage(
     messages: [
       {
         role: 'system',
-        content: `${OCR_RECEIPT_PROMPT}\n\nAvailable member names: ${memberNames.join(', ') || 'None yet'}`,
+        content: `${OCR_RECEIPT_PROMPT}\n\nIMPORTANT: Available member names (payer_name and split_among names MUST match one of these exactly): ${memberNames.length > 0 ? memberNames.join(', ') : 'None yet'}. If a name is mentioned in the receipt, match it to the closest available member name.`,
       },
       {
         role: 'user',
