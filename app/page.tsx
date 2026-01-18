@@ -50,6 +50,7 @@ function HomeContent() {
     message: string
   } | null>(null)
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
+  const [isLoadingTrip, setIsLoadingTrip] = useState(true)
 
   useEffect(() => {
     if (!user) return // Wait for auth
@@ -61,25 +62,30 @@ function HomeContent() {
 
     if (inviteCode) {
       // Handle joining via invite code
+      setIsLoadingTrip(true)
       joinTrip(inviteCode, displayName, user.id)
-        .then((id) => {
+        .then(async (id) => {
           localStorage.setItem('tripId', id)
           setTripId(id)
           setCurrentUser(displayName)
-          loadTripData(id)
-          loadTrips(displayName, user.id)
+          await loadTripData(id)
+          await loadTrips(displayName, user.id)
           router.replace('/')
+          setIsLoadingTrip(false)
         })
         .catch((err) => {
           alert(err.message)
+          setIsLoadingTrip(false)
         })
     } else if (storedTripId) {
       setTripId(storedTripId)
       setCurrentUser(displayName)
       loadTripData(storedTripId)
+        .then(() => setIsLoadingTrip(false))
       loadTrips(displayName, user.id)
     } else {
       // No trip - show start trip option
+      setIsLoadingTrip(false)
       setShowStartTripModal(true)
     }
   }, [searchParams, router, user])
@@ -143,7 +149,7 @@ function HomeContent() {
     if (!tripId) return
 
     try {
-      const result = await createTransaction(tripId, parsed, receiptUrl)
+      const result = await createTransaction(tripId, parsed, receiptUrl, currentUser)
       
       // Haptic feedback
       if (navigator.vibrate) {
@@ -361,6 +367,14 @@ function HomeContent() {
           setPendingReceiptUrl(null)
         }}
       />
+    )
+  }
+
+  if (isLoadingTrip) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+      </div>
     )
   }
 

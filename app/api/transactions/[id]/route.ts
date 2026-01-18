@@ -19,15 +19,21 @@ export async function PUT(
     const transactionId = params.id
 
     // Get current transaction to check split_type
-    const { data: currentTransaction } = await supabase
+    const { data: currentTransaction, error: fetchError } = await supabase
       .from('transactions')
       .select('split_type')
       .eq('id', transactionId)
-      .single()
+      .maybeSingle()
 
-    const currentSplitType = currentTransaction
-      ? (currentTransaction as { split_type?: 'equal' | 'custom' }).split_type
-      : undefined
+    if (fetchError) {
+      throw new Error(`Failed to fetch transaction: ${fetchError.message}`)
+    }
+
+    if (!currentTransaction) {
+      throw new Error('Transaction not found')
+    }
+
+    const currentSplitType = (currentTransaction as { split_type?: 'equal' | 'custom' }).split_type
 
     // Update transaction
     const updateData: any = {
@@ -40,16 +46,26 @@ export async function PUT(
     if (splitType !== undefined) updateData.split_type = splitType
     if (lineItems !== undefined) updateData.line_items = lineItems
 
-    const { data: transaction, error: txError } = await supabase
+    // Update transaction
+    const { error: updateError } = await supabase
       .from('transactions')
       // @ts-expect-error - Supabase type inference issue with update
       .update(updateData)
       .eq('id', transactionId)
-      .select()
+
+    if (updateError) {
+      throw new Error(`Failed to update transaction: ${updateError.message}`)
+    }
+
+    // Fetch updated transaction
+    const { data: transaction, error: selectError } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('id', transactionId)
       .single()
 
-    if (txError) {
-      throw new Error(`Failed to update transaction: ${txError.message}`)
+    if (selectError || !transaction) {
+      throw new Error(`Failed to fetch updated transaction: ${selectError?.message || 'Transaction not found'}`)
     }
 
     const finalSplitType = splitType !== undefined ? splitType : currentSplitType

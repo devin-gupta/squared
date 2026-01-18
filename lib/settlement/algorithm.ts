@@ -98,6 +98,54 @@ export async function calculateBalances(
     const payerId = tx.payer_id
     const totalAmount = parseFloat(tx.total_amount)
 
+    // Handle line items (receipts with item-level splits)
+    if (tx.line_items && Array.isArray(tx.line_items) && tx.line_items.length > 0) {
+      const lineItems = tx.line_items as Array<{
+        description: string
+        amount: number
+        category: string
+        split_among?: string[]
+      }>
+
+      // Build a map of member name/ID to member ID for lookups
+      const nameToIdMap = new Map<string, string>()
+      memberMap.forEach((name, id) => {
+        nameToIdMap.set(name.toLowerCase(), id)
+        nameToIdMap.set(id, id)
+      })
+
+      for (const item of lineItems) {
+        const itemAmount = parseFloat(item.amount.toString()) || 0
+        
+        if (item.split_among && item.split_among.length > 0) {
+          // Split among specified members
+          const splitMemberIds = item.split_among
+            .map((nameOrId) => {
+              const id = nameToIdMap.get(nameOrId.toLowerCase()) || nameToIdMap.get(nameOrId)
+              return id
+            })
+            .filter((id): id is string => id !== undefined)
+
+          if (splitMemberIds.length > 0) {
+            const perPerson = itemAmount / splitMemberIds.length
+            splitMemberIds.forEach((memberId) => {
+              balances.set(memberId, (balances.get(memberId) || 0) - perPerson)
+            })
+          }
+        } else {
+          // Split among all members
+          const perPerson = itemAmount / memberMap.size
+          memberMap.forEach((_, memberId) => {
+            balances.set(memberId, (balances.get(memberId) || 0) - perPerson)
+          })
+        }
+      }
+
+      // Add to payer's balance (they paid, so they're owed)
+      balances.set(payerId, (balances.get(payerId) || 0) + totalAmount)
+      continue
+    }
+
     // Get all members who should pay
     const membersToPay = new Set<string>()
     memberMap.forEach((_, memberId) => {

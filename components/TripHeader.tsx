@@ -1,8 +1,8 @@
 'use client'
 
-import { motion } from 'framer-motion'
+import { useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import MemberAvatars from './MemberAvatars'
-import TripSelector from './TripSelector'
 
 interface Trip {
   id: string
@@ -34,9 +34,13 @@ export default function TripHeader({
   onDelete,
   isCreator = false,
 }: TripHeaderProps) {
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+
   if (!trip) {
     return null
   }
+
+  const showDropdown = trips.length > 1
 
   return (
     <motion.div
@@ -47,15 +51,72 @@ export default function TripHeader({
       <div className="flex items-start justify-between mb-4">
         <div className="flex-1">
           <div className="flex items-center gap-3 mb-1">
-            <h1 className="text-2xl md:text-4xl font-serif font-light text-accent break-words">{trip.name}</h1>
-            {trips.length > 1 && (
-              <TripSelector
-                trips={trips}
-                currentTripId={trip.id}
-                onSelectTrip={onSwitchTrip}
-                onCreateNew={onCreateTrip}
-              />
-            )}
+            <div className="relative">
+              <button
+                onClick={() => showDropdown && setIsDropdownOpen(!isDropdownOpen)}
+                className={`flex items-center gap-2 text-2xl md:text-4xl font-serif font-light text-accent break-words ${
+                  showDropdown ? 'cursor-pointer hover:text-accent/80 transition-colors' : ''
+                }`}
+              >
+                {trip.name}
+                {showDropdown && (
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={1.5}
+                    stroke="currentColor"
+                    className={`w-5 h-5 md:w-6 md:h-6 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                  </svg>
+                )}
+              </button>
+
+              <AnimatePresence>
+                {isDropdownOpen && showDropdown && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setIsDropdownOpen(false)}
+                    />
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="absolute top-full mt-2 left-0 bg-base border border-accent/10 rounded-lg shadow-lg z-50 min-w-[200px]"
+                    >
+                      <div className="py-2">
+                        {trips.map((t) => (
+                          <button
+                            key={t.id}
+                            onClick={() => {
+                              onSwitchTrip(t.id)
+                              setIsDropdownOpen(false)
+                            }}
+                            className={`w-full text-left px-4 py-2 text-sm hover:bg-accent/5 transition-colors ${
+                              t.id === trip.id ? 'bg-accent/10 font-medium' : ''
+                            }`}
+                          >
+                            {t.name}
+                          </button>
+                        ))}
+                        <div className="border-t border-accent/10 my-1" />
+                        <button
+                          onClick={() => {
+                            onCreateTrip()
+                            setIsDropdownOpen(false)
+                          }}
+                          className="w-full text-left px-4 py-2 text-sm text-accent/70 hover:bg-accent/5 transition-colors"
+                        >
+                          + New Trip
+                        </button>
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
           <p className="text-sm text-accent/60">Created by {trip.created_by}</p>
         </div>

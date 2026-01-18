@@ -26,6 +26,15 @@ export default function QuickAdd({ onSubmit, isProcessing }: QuickAddProps) {
     setImageFile(file)
   }
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      if (input.trim() || imageFile) {
+        handleSubmit(e as any)
+      }
+    }
+  }
+
   return (
     <div className="px-6 py-6">
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -33,6 +42,7 @@ export default function QuickAdd({ onSubmit, isProcessing }: QuickAddProps) {
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
             placeholder="Dinner $120, Jai didn't eat meat..."
             className="w-full min-h-[100px] p-4 text-lg bg-transparent border-none outline-none resize-none text-accent placeholder:text-accent/40 focus:ring-0"
             disabled={isProcessing}

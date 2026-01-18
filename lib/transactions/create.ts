@@ -5,7 +5,8 @@ import { addMember } from '../trips/addMember'
 export async function createTransaction(
   tripId: string,
   parsed: TransactionParsed,
-  receiptUrl?: string | null
+  receiptUrl?: string | null,
+  currentUserName?: string | null
 ): Promise<{ transactionId: string; addedMember?: { id: string; name: string } }> {
   // Get all members for this trip
   const { data: members, error: membersError } = await supabase
@@ -44,8 +45,13 @@ export async function createTransaction(
     
     payerId = payer?.id || typedMembers[0].id
   } else {
-    // Default to first member (or could use current user)
-    payerId = typedMembers[0].id
+    // Default to current user (person adding the item) if provided, otherwise first member
+    if (currentUserName) {
+      const currentUserMember = typedMembers.find((m) => m.display_name === currentUserName)
+      payerId = currentUserMember?.id || typedMembers[0].id
+    } else {
+      payerId = typedMembers[0].id
+    }
   }
 
   // Create transaction (finalize immediately for v1)

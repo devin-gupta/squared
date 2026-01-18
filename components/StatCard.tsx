@@ -21,11 +21,11 @@ export default function StatCard({ label, value, isCurrency = false }: StatCardP
 
   return (
     <motion.div
-      className="bg-accent/5 border border-accent/10 rounded-lg p-4"
-      whileHover={{ scale: 1.02, backgroundColor: 'rgba(45, 48, 46, 0.1)' }}
+      className="bg-accent/8 border border-accent/20 rounded-lg p-4 shadow-sm"
+      whileHover={{ scale: 1.02, backgroundColor: 'rgba(45, 48, 46, 0.12)', shadow: 'md' }}
       transition={{ duration: 0.15 }}
     >
-      <div className="text-xs font-sans text-accent/60 uppercase tracking-wide mb-2">
+      <div className="text-xs font-sans text-accent/70 uppercase tracking-wide mb-2 font-medium">
         {label}
       </div>
       <div className="text-2xl font-serif font-bold text-accent">

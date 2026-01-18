@@ -43,9 +43,9 @@ export default function TransactionCard({
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      whileHover={{ scale: 1.01 }}
+      whileHover={{ scale: 1.01, backgroundColor: 'rgba(45, 48, 46, 0.08)' }}
       transition={{ duration: 0.15 }}
-      className="px-4 py-3 bg-accent/5 border border-accent/10 rounded-lg mb-3 cursor-pointer"
+      className="px-4 py-3 bg-accent/6 border border-accent/15 rounded-lg mb-3 cursor-pointer shadow-sm hover:shadow-md transition-shadow"
       onClick={() => setIsExpanded(!isExpanded)}
     >
       <div className="flex items-start justify-between">
