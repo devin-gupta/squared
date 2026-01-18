@@ -178,7 +178,7 @@ export default function LiveFeed({ tripId }: LiveFeedProps) {
     <>
       <div className="min-h-screen px-6 py-8">
         <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <h1 className="text-3xl font-serif font-bold text-accent">Ledger</h1>
+          <h1 className="text-2xl md:text-3xl font-serif font-bold text-accent">Ledger</h1>
           <div className="flex gap-3 items-center">
             <div className="flex-1 relative">
               <input

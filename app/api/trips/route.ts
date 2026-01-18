@@ -5,8 +5,9 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const userName = searchParams.get('user_name') || undefined
+    const userId = searchParams.get('user_id') || undefined
 
-    const trips = await listTrips(userName)
+    const trips = await listTrips(userName, userId)
 
     return NextResponse.json({ trips })
   } catch (error) {

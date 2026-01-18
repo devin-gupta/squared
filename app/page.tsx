@@ -8,8 +8,11 @@ import TripHeader from '@/components/TripHeader'
 import StartTripModal from '@/components/StartTripModal'
 import ShareTripModal from '@/components/ShareTripModal'
 import MemberListModal from '@/components/MemberListModal'
+import DeleteTripModal from '@/components/DeleteTripModal'
 import RecentActivity from '@/components/RecentActivity'
 import TransactionEditForm from '@/components/TransactionEditForm'
+import AuthGuard from '@/components/AuthGuard'
+import { useAuth } from '@/hooks/useAuth'
 import { createTrip } from '@/lib/trips/create'
 import { joinTrip } from '@/lib/trips/join'
 import { listTrips } from '@/lib/trips/list'
@@ -25,6 +28,7 @@ import { removeMember } from '@/lib/trips/removeMember'
 function HomeContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { user } = useAuth()
   const [isProcessing, setIsProcessing] = useState(false)
   const [tripId, setTripId] = useState<string | null>(null)
   const [trip, setTrip] = useState<Trip | null>(null)
@@ -36,6 +40,8 @@ function HomeContent() {
   const [showStartTripModal, setShowStartTripModal] = useState(false)
   const [showShareModal, setShowShareModal] = useState(false)
   const [showMemberModal, setShowMemberModal] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [pendingParsed, setPendingParsed] = useState<TransactionParsed | null>(null)
   const [pendingReceiptUrl, setPendingReceiptUrl] = useState<string | null>(null)
   const [undoState, setUndoState] = useState<{
@@ -46,41 +52,41 @@ function HomeContent() {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
 
   useEffect(() => {
+    if (!user) return // Wait for auth
+
     // Check for trip ID in localStorage or URL
     const storedTripId = localStorage.getItem('tripId')
-    const storedUser = localStorage.getItem('currentUser')
     const inviteCode = searchParams.get('code')
+    const displayName = user.email?.split('@')[0] || 'User'
 
     if (inviteCode) {
       // Handle joining via invite code
-      const displayName = prompt('Enter your name:') || 'Guest'
-      joinTrip(inviteCode, displayName)
+      joinTrip(inviteCode, displayName, user.id)
         .then((id) => {
           localStorage.setItem('tripId', id)
-          localStorage.setItem('currentUser', displayName)
           setTripId(id)
           setCurrentUser(displayName)
           loadTripData(id)
-          loadTrips(displayName)
+          loadTrips(displayName, user.id)
           router.replace('/')
         })
         .catch((err) => {
           alert(err.message)
         })
-    } else if (storedTripId && storedUser) {
+    } else if (storedTripId) {
       setTripId(storedTripId)
-      setCurrentUser(storedUser)
+      setCurrentUser(displayName)
       loadTripData(storedTripId)
-      loadTrips(storedUser)
+      loadTrips(displayName, user.id)
     } else {
       // No trip - show start trip option
       setShowStartTripModal(true)
     }
-  }, [searchParams, router])
+  }, [searchParams, router, user])
 
-  const loadTrips = async (userName: string) => {
+  const loadTrips = async (userName?: string, userId?: string) => {
     try {
-      const userTrips = await listTrips(userName)
+      const userTrips = await listTrips(userName, userId)
       setTrips(userTrips)
     } catch (error) {
       console.error('Error loading trips:', error)
@@ -106,7 +112,7 @@ function HomeContent() {
   const loadMembers = async (tripId: string) => {
     const { data: membersData } = await supabase
       .from('trip_members')
-      .select('id, display_name')
+      .select('id, display_name, user_id')
       .eq('trip_id', tripId)
 
     if (membersData) {
@@ -203,14 +209,18 @@ function HomeContent() {
   }
 
   const handleStartTrip = async (tripName: string, userName: string) => {
+    if (!user) {
+      alert('Authentication required')
+      return
+    }
+
     try {
-      const { tripId: newTripId, inviteCode } = await createTrip(userName, tripName)
+      const { tripId: newTripId, inviteCode } = await createTrip(userName, tripName, user.id)
       localStorage.setItem('tripId', newTripId)
-      localStorage.setItem('currentUser', userName)
       setTripId(newTripId)
       setCurrentUser(userName)
       await loadTripData(newTripId)
-      await loadTrips(userName)
+      await loadTrips(userName, user.id)
       setShowStartTripModal(false)
     } catch (error) {
       console.error('Error creating trip:', error)
@@ -232,6 +242,42 @@ function HomeContent() {
     } catch (error) {
       console.error('Error removing member:', error)
       alert('Failed to remove member')
+    }
+  }
+
+  const handleDeleteTrip = async () => {
+    if (!tripId || !trip) return
+    
+    setIsDeleting(true)
+    try {
+      // Get auth token from Supabase session
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        throw new Error('Authentication required')
+      }
+
+      const response = await fetch(`/api/trips/${tripId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to delete trip')
+      }
+
+      // Clear trip state and redirect
+      localStorage.removeItem('tripId')
+      setTripId(null)
+      setTrip(null)
+      setTrips(trips.filter((t) => t.id !== tripId))
+      setShowDeleteModal(false)
+    } catch (error) {
+      console.error('Error deleting trip:', error)
+      alert(error instanceof Error ? error.message : 'Failed to delete trip')
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -330,6 +376,8 @@ function HomeContent() {
             onSwitchTrip={handleSwitchTrip}
             onCreateTrip={() => setShowStartTripModal(true)}
             onViewMembers={() => setShowMemberModal(true)}
+            onDelete={() => setShowDeleteModal(true)}
+            isCreator={user ? (members.find((m: any) => m.user_id === user.id)?.display_name === trip.created_by) : false}
           />
           <QuickAdd onSubmit={handleSubmit} isProcessing={isProcessing || aiLoading} />
           <RecentActivity
@@ -341,7 +389,7 @@ function HomeContent() {
       ) : (
         <div className="min-h-screen flex flex-col items-center justify-center px-6">
           <div className="text-center mb-8">
-            <h1 className="text-4xl font-serif font-bold text-accent mb-4">Squared</h1>
+            <h1 className="text-2xl md:text-4xl font-serif font-bold text-accent mb-4">Squared</h1>
             <p className="text-accent/60 mb-8">Start tracking expenses for your trip</p>
             <button
               onClick={() => setShowStartTripModal(true)}
@@ -375,6 +423,14 @@ function HomeContent() {
             members={members}
             onRemoveMember={handleRemoveMember}
           />
+
+          <DeleteTripModal
+            isOpen={showDeleteModal}
+            onClose={() => setShowDeleteModal(false)}
+            onConfirm={handleDeleteTrip}
+            tripName={trip.name}
+            isDeleting={isDeleting}
+          />
         </>
       )}
 
@@ -404,12 +460,14 @@ function HomeContent() {
 
 export default function Home() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-success border-t-transparent rounded-full animate-spin" />
-      </div>
-    }>
-      <HomeContent />
-    </Suspense>
+    <AuthGuard>
+      <Suspense fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="w-6 h-6 border-2 border-success border-t-transparent rounded-full animate-spin" />
+        </div>
+      }>
+        <HomeContent />
+      </Suspense>
+    </AuthGuard>
   )
 }

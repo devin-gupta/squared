@@ -76,7 +76,35 @@ export default function TransactionCard({
           >
             <div className="pt-4 mt-4 border-t border-accent/10 space-y-3">
               <div className="text-sm text-accent/70">
-                <div>Split: {transaction.split_type}</div>
+                <div className="flex items-center justify-between">
+                  <span>Split: {transaction.split_type}</span>
+                  {canEdit && (
+                    <div className="flex gap-3 ml-auto">
+                      {onEdit && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onEdit()
+                          }}
+                          className="text-sm text-accent/60 hover:text-accent"
+                        >
+                          Edit
+                        </button>
+                      )}
+                      {onDelete && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onDelete()
+                          }}
+                          className="text-sm text-red-600 hover:text-red-700"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
                 {transaction.line_items && transaction.line_items.length > 0 && (
                   <div className="mt-2">
                     <div className="font-medium mb-1">Line Items:</div>
@@ -88,32 +116,6 @@ export default function TransactionCard({
                   </div>
                 )}
               </div>
-              {canEdit && (
-                <div className="flex gap-2 pt-2">
-                  {onEdit && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onEdit()
-                      }}
-                      className="text-sm text-accent/60 hover:text-accent"
-                    >
-                      Edit
-                    </button>
-                  )}
-                  {onDelete && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onDelete()
-                      }}
-                      className="text-sm text-red-600 hover:text-red-700"
-                    >
-                      Delete
-                    </button>
-                  )}
-                </div>
-              )}
             </div>
           </motion.div>
         )}

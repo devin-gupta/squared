@@ -98,7 +98,7 @@ export default function SettlementView({ tripId, currentUserName }: SettlementVi
   return (
     <div className="min-h-screen">
       <div className="px-6 pt-8 pb-4">
-        <h1 className="text-3xl font-serif font-bold text-accent mb-8">Balance</h1>
+        <h1 className="text-2xl md:text-3xl font-serif font-bold text-accent mb-8">Balance</h1>
       </div>
 
       <SpendingStats tripId={tripId} currentUserName={currentUserName} />
@@ -108,7 +108,7 @@ export default function SettlementView({ tripId, currentUserName }: SettlementVi
       )}
 
       <div className="px-6 py-6">
-        <h2 className="text-2xl font-serif font-bold text-accent mb-6">Settlements</h2>
+        <h2 className="text-xl md:text-2xl font-serif font-bold text-accent mb-6">Settlements</h2>
         {settlements.length === 0 ? (
           <div className="text-center py-8">
             <div className="text-lg font-serif text-accent/60 mb-2">All settled</div>
@@ -134,7 +134,7 @@ export default function SettlementView({ tripId, currentUserName }: SettlementVi
                       {formatAmount(settlement.amount)}
                     </div>
                   </div>
-                  <div className="text-xl font-semibold text-success font-sans">
+                  <div className="text-xl font-semibold text-accent font-sans">
                     {formatAmount(settlement.amount)}
                   </div>
                 </div>

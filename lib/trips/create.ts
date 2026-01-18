@@ -9,7 +9,7 @@ function generateInviteCode(): string {
   return result
 }
 
-export async function createTrip(displayName: string, tripName?: string): Promise<{ tripId: string; inviteCode: string }> {
+export async function createTrip(displayName: string, tripName?: string, userId?: string): Promise<{ tripId: string; inviteCode: string }> {
   // Generate a short, readable invite code
   const inviteCode = generateInviteCode()
 
@@ -28,13 +28,19 @@ export async function createTrip(displayName: string, tripName?: string): Promis
     throw new Error(`Failed to create trip: ${tripError.message}`)
   }
 
-  // Add creator as first member
+  // Add creator as first member (with user_id if authenticated)
+  const memberData: { trip_id: string; display_name: string; user_id?: string } = {
+    trip_id: trip.id,
+    display_name: displayName,
+  }
+  
+  if (userId) {
+    memberData.user_id = userId
+  }
+
   const { data: member, error: memberError } = await (supabase
     .from('trip_members') as any)
-    .insert({
-      trip_id: trip.id,
-      display_name: displayName,
-    })
+    .insert(memberData)
     .select()
     .single()
 

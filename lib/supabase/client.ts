@@ -10,6 +10,8 @@ if (!supabaseUrl || !supabasePublishableKey) {
 
 export const supabase = createClient<Database>(supabaseUrl, supabasePublishableKey, {
   auth: {
-    persistSession: false,
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
   },
 })
