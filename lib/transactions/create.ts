@@ -20,44 +20,15 @@ export async function createTransaction(
 
   const typedMembers = members as Array<{ id: string; display_name: string }>
 
-  // Helper function to find member by name with fuzzy matching
-  const findMemberByName = (name: string): { id: string; display_name: string } | undefined => {
-    if (!name) return undefined
-    
-    const normalizedName = name.toLowerCase().trim()
-    
-    // 1. Try exact match (case-insensitive)
-    let payer = typedMembers.find((m) => m.display_name.toLowerCase() === normalizedName)
-    if (payer) return payer
-    
-    // 2. Try substring match (e.g., "puja" in "poojagupta23")
-    payer = typedMembers.find((m) => 
-      m.display_name.toLowerCase().includes(normalizedName) || 
-      normalizedName.includes(m.display_name.toLowerCase())
-    )
-    if (payer) return payer
-    
-    // 3. Try starts-with match (e.g., "raj" matches "Rajat")
-    payer = typedMembers.find((m) => 
-      m.display_name.toLowerCase().startsWith(normalizedName) || 
-      normalizedName.startsWith(m.display_name.toLowerCase())
-    )
-    if (payer) return payer
-    
-    return undefined
-  }
-
-  // Find payer ID - try to match to existing members first
+  // Find payer ID - auto-add if not found
   let payerId: string
   let addedMember: { id: string; name: string } | undefined
 
   if (parsed.payer_name) {
-    // Try to find matching member with fuzzy matching
-    let payer = findMemberByName(parsed.payer_name)
+    let payer: { id: string; display_name: string } | undefined = typedMembers.find((m) => m.display_name === parsed.payer_name)
     
     if (!payer) {
-      // If no match found, try auto-adding as new member (but log it)
-      console.log(`No match found for payer_name "${parsed.payer_name}", attempting to add as new member`)
+      // Auto-add new member
       try {
         const newMember = await addMember(tripId, parsed.payer_name)
         payer = newMember as { id: string; display_name: string }
@@ -66,30 +37,17 @@ export async function createTransaction(
           name: newMember.display_name,
         }
       } catch (error) {
-        // If auto-add fails, fall back to current user or first member
+        // If auto-add fails, fall back to first member
         console.error('Failed to auto-add member:', error)
-        // Fall through to default logic below
-        payer = undefined
+        payer = typedMembers[0]
       }
     }
     
-    // If we still don't have a payer, default to current user or first member
-    if (!payer) {
-      if (currentUserName) {
-        const currentUserMember = findMemberByName(currentUserName) || 
-          typedMembers.find((m) => m.display_name === currentUserName)
-        payerId = currentUserMember?.id || typedMembers[0].id
-      } else {
-        payerId = typedMembers[0].id
-      }
-    } else {
-      payerId = payer.id
-    }
+    payerId = payer?.id || typedMembers[0].id
   } else {
     // Default to current user (person adding the item) if provided, otherwise first member
     if (currentUserName) {
-      const currentUserMember = findMemberByName(currentUserName) || 
-        typedMembers.find((m) => m.display_name === currentUserName)
+      const currentUserMember = typedMembers.find((m) => m.display_name === currentUserName)
       payerId = currentUserMember?.id || typedMembers[0].id
     } else {
       payerId = typedMembers[0].id

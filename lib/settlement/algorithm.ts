@@ -13,6 +13,11 @@ interface Settlement {
 export function calculateOptimalSettlement(
   balances: Map<string, number>
 ): Settlement[] {
+  // #region agent log
+  const inputBalances: Record<string, number> = {}
+  balances.forEach((val, key) => { inputBalances[key] = val })
+  fetch('http://127.0.0.1:7242/ingest/473fdca0-8c87-48f9-a206-a717977155d0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/settlement/algorithm.ts:13',message:'calculateOptimalSettlement entry',data:{inputBalances},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+  // #endregion
   const settlements: Settlement[] = []
   const creditors: Array<{ id: string; amount: number }> = []
   const debtors: Array<{ id: string; amount: number }> = []
@@ -27,6 +32,10 @@ export function calculateOptimalSettlement(
       debtors.push({ id, amount: Math.abs(balance) })
     }
   })
+
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/473fdca0-8c87-48f9-a206-a717977155d0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/settlement/algorithm.ts:31',message:'creditors and debtors separated',data:{creditorCount:creditors.length,debtorCount:debtors.length,creditors,debtors},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+  // #endregion
 
   // Sort by amount (largest first)
   creditors.sort((a, b) => b.amount - a.amount)
@@ -59,14 +68,33 @@ export function calculateOptimalSettlement(
     }
   }
 
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/473fdca0-8c87-48f9-a206-a717977155d0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/settlement/algorithm.ts:62',message:'settlements calculated',data:{settlementCount:settlements.length,settlements},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+  // #endregion
+
   return settlements
 }
 
 export async function calculateBalances(
   tripId: string,
-  memberMap: Map<string, string> // member_id -> display_name
+  memberMap: Map<string, string>, // member_id -> display_name
+  supabaseClient?: any // Optional authenticated Supabase client
 ): Promise<Map<string, number>> {
-  const { supabase } = require('../supabase/client')
+  // Use provided client or create a server-side Supabase client
+  let supabase = supabaseClient
+  if (!supabase) {
+    // Fallback: create client if not provided
+    const { createClient } = require('@supabase/supabase-js')
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
+    
+    supabase = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    })
+  }
   
   const balances = new Map<string, number>()
 
@@ -97,6 +125,9 @@ export async function calculateBalances(
   for (const tx of transactions as any[]) {
     const payerId = tx.payer_id
     const totalAmount = parseFloat(tx.total_amount)
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/473fdca0-8c87-48f9-a206-a717977155d0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/settlement/algorithm.ts:97',message:'processing transaction',data:{txId:tx.id||null,payerId,totalAmount,splitType:tx.split_type||null,hasLineItems:!!tx.line_items,memberMapHasPayer:memberMap.has(payerId)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
 
     // Handle line items (receipts with item-level splits)
     if (tx.line_items && Array.isArray(tx.line_items) && tx.line_items.length > 0) {

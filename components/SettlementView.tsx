@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
+import { supabase } from '@/lib/supabase/client'
 import SpendingStats from './SpendingStats'
 import CategoryPieChart from './CategoryPieChart'
 
@@ -32,8 +33,17 @@ export default function SettlementView({ tripId, currentUserName }: SettlementVi
 
     const computeSettlement = async () => {
       try {
+        // Get the current session token to pass to the API
+        const { data: { session } } = await supabase.auth.getSession()
+        const authToken = session?.access_token || null
+        
+        const headers: HeadersInit = {}
+        if (authToken) {
+          headers['Authorization'] = `Bearer ${authToken}`
+        }
+        
         const [settlementResponse, statsResponse] = await Promise.all([
-          fetch(`/api/settlement?tripId=${tripId}`),
+          fetch(`/api/settlement?tripId=${tripId}`, { headers }),
           fetch(`/api/trips/${tripId}/statistics${currentUserName ? `?userName=${encodeURIComponent(currentUserName)}` : ''}`)
         ])
 
