@@ -38,10 +38,16 @@ export function useAuth() {
   }, [])
 
   const signIn = async (email: string) => {
+    // Use window.location.origin to get the current domain (works in both dev and production)
+    // In production, this will be the Vercel deployment URL
+    const redirectUrl = typeof window !== 'undefined' 
+      ? `${window.location.origin}/`
+      : '/'
+    
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${window.location.origin}/`,
+        emailRedirectTo: redirectUrl,
       },
     })
     if (error) throw error
