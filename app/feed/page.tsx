@@ -1,21 +1,22 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import LiveFeed from '@/components/LiveFeed'
+import { useState, useEffect } from "react";
+import AuthGuard from "@/components/AuthGuard";
+import LiveFeed from "@/components/LiveFeed";
 
 export default function FeedPage() {
-  const [tripId, setTripId] = useState<string | null>(null)
+  const [tripId, setTripId] = useState<string | null>(null);
 
   useEffect(() => {
-    const storedTripId = localStorage.getItem('tripId')
+    const storedTripId = localStorage.getItem("tripId");
     if (storedTripId) {
-      setTripId(storedTripId)
+      setTripId(storedTripId);
     }
-  }, [])
+  }, []);
 
   return (
-    <div className="pb-16">
+    <AuthGuard>
       <LiveFeed tripId={tripId} />
-    </div>
-  )
+    </AuthGuard>
+  );
 }

@@ -1,60 +1,83 @@
-import { supabase } from '../supabase/client'
+import { supabase } from "../supabase/client";
+import { normalizeInvite } from "../auth/preferences";
 
-export async function joinTrip(inviteCode: string, displayName: string, userId?: string): Promise<string> {
-  // Find trip by invite code
-  const { data: trip, error: tripError } = await (supabase
-    .from('trips') as any)
-    .select('id')
-    .eq('invite_code', inviteCode.toUpperCase())
-    .single()
-
-  if (tripError || !trip) {
-    throw new Error('Trip not found. Please check the invite code.')
-  }
-
-  const typedTrip = trip as { id: string }
-
-  // Check if member already exists (by user_id if authenticated, or display_name)
-  let existingMember
-  if (userId) {
-    const { data } = await (supabase
-      .from('trip_members') as any)
-      .select('id')
-      .eq('trip_id', typedTrip.id)
-      .eq('user_id', userId)
-      .single()
-    existingMember = data
-  } else {
-    const { data } = await (supabase
-      .from('trip_members') as any)
-      .select('id')
-      .eq('trip_id', typedTrip.id)
-      .eq('display_name', displayName)
-      .single()
-    existingMember = data
-  }
-
-  if (existingMember) {
-    return typedTrip.id
-  }
-
-  // Add member (with user_id if authenticated)
-  const memberData: { trip_id: string; display_name: string; user_id?: string } = {
-    trip_id: typedTrip.id,
-    display_name: displayName,
-  }
-  
-  if (userId) {
-    memberData.user_id = userId
-  }
-
-  const { error: memberError } = await (supabase
-    .from('trip_members') as any)
-    .insert(memberData)
-
+// Strict Mode, token refreshes, and rapid navigation must not insert twice.
+const joining = new Map<string, Promise<string>>();
+export function joinTrip(
+  inviteCode: string,
+  displayName: string,
+  userId: string,
+): Promise<string> {
+  const code = normalizeInvite(inviteCode);
+  if (!code || !userId)
+    return Promise.reject(
+      new Error("Sign in with a valid trip invite to continue."),
+    );
+  const key = `${userId}:${code}`;
+  const existing = joining.get(key);
+  if (existing) return existing;
+  const pending = joinAuthenticatedTrip(code, displayName, userId).finally(() =>
+    joining.delete(key),
+  );
+  joining.set(key, pending);
+  return pending;
+}
+async function joinAuthenticatedTrip(
+  code: string,
+  displayName: string,
+  userId: string,
+): Promise<string> {
+  const { data: trip, error: tripError } = await supabase
+    .from("trips")
+    .select("id")
+    .eq("invite_code", code)
+    .maybeSingle();
+  if (tripError)
+    throw new Error(
+      "We couldn’t check this invite. Check your connection and try again.",
+    );
+  if (!trip)
+    throw new Error(
+      "This trip invite is no longer available. Ask your friend for a fresh link.",
+    );
+  const tripId = (trip as { id: string }).id;
+  const findMember = async () => {
+    const { data, error } = await supabase
+      .from("trip_members")
+      .select("id")
+      .eq("trip_id", tripId)
+      .eq("user_id", userId)
+      .limit(1)
+      .maybeSingle();
+    if (error)
+      throw new Error("We couldn’t check your membership. Please try again.");
+    return data;
+  };
+  if (await findMember()) return tripId;
+  const { data: members, error } = await supabase
+    .from("trip_members")
+    .select("display_name")
+    .eq("trip_id", tripId);
+  if (error)
+    throw new Error("We couldn’t load the trip members. Please try again.");
+  const names = new Set(
+    ((members as Array<{ display_name: string }>) || []).map(
+      (m) => m.display_name,
+    ),
+  );
+  const baseName = displayName.trim().slice(0, 80) || "Traveler";
+  let name = baseName;
+  let suffix = 2;
+  while (names.has(name)) name = `${baseName} (${suffix++})`;
+  const { error: memberError } = await (
+    supabase.from("trip_members") as any
+  ).insert({ trip_id: tripId, display_name: name, user_id: userId });
   if (memberError) {
-    throw new Error(`Failed to join trip: ${memberError.message}`)
+    // Another tab may have completed this same invitation already.
+    if (memberError.code === "23505" && (await findMember())) return tripId;
+    throw new Error(
+      "We couldn’t join the trip. Please try again; your invite is saved.",
+    );
   }
-
-  return typedTrip.id
+  return tripId;
 }

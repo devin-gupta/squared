@@ -1,124 +1,108 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-
-interface StartTripModalProps {
-  isOpen: boolean
-  onClose: () => void
-  onSubmit: (tripName: string, userName: string) => Promise<void>
-  defaultUserName?: string
-}
+import { useState, useEffect } from "react";
+import Modal from "./Modal";
+import Icon from "./Icon";
 
 export default function StartTripModal({
   isOpen,
   onClose,
   onSubmit,
-  defaultUserName = '',
-}: StartTripModalProps) {
-  const [tripName, setTripName] = useState('')
-  const [userName, setUserName] = useState(defaultUserName)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-
+  defaultUserName = "",
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (tripName: string, userName: string) => Promise<void>;
+  defaultUserName?: string;
+}) {
+  const [tripName, setTripName] = useState("");
+  const [userName, setUserName] = useState(defaultUserName);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     if (isOpen) {
-      setUserName(defaultUserName)
-      setTripName('')
+      setUserName(defaultUserName);
+      setTripName("");
+      setError(null);
     }
-  }, [isOpen, defaultUserName])
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!tripName.trim() || !userName.trim()) {
-      return
-    }
-
-    setIsSubmitting(true)
+  }, [isOpen, defaultUserName]);
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (submitting || !tripName.trim() || !userName.trim()) return;
+    setSubmitting(true);
+    setError(null);
     try {
-      await onSubmit(tripName.trim(), userName.trim())
-      setTripName('')
-    } catch (error) {
-      console.error('Error creating trip:', error)
+      await onSubmit(tripName.trim(), userName.trim());
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Couldn’t create your trip. Try again.",
+      );
     } finally {
-      setIsSubmitting(false)
+      setSubmitting(false);
     }
-  }
-
+  };
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-accent/20 backdrop-blur-sm z-50"
-            onClick={onClose}
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      title="Something to look forward to."
+      description="Give your trip a name. You can invite the crew next."
+    >
+      <form onSubmit={submit} className="space-y-5">
+        <div>
+          <label htmlFor="tripName" className="mb-2 block text-sm font-medium">
+            Trip name
+          </label>
+          <input
+            id="tripName"
+            value={tripName}
+            onChange={(e) => setTripName(e.target.value)}
+            placeholder="A weekend in the mountains"
+            required
+            autoFocus
+            className="w-full"
           />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="fixed inset-0 flex items-center justify-center z-50 p-6"
-            onClick={(e) => e.stopPropagation()}
+        </div>
+        <div>
+          <label htmlFor="userName" className="mb-2 block text-sm font-medium">
+            Your name
+          </label>
+          <input
+            id="userName"
+            value={userName}
+            onChange={(e) => setUserName(e.target.value)}
+            autoComplete="given-name"
+            placeholder="What should we call you?"
+            required
+            className="w-full"
+          />
+        </div>
+        {error && (
+          <p role="alert" className="text-sm text-red-700">
+            {error}
+          </p>
+        )}
+        <div className="flex gap-3 pt-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="btn-secondary flex-1"
+            disabled={submitting}
           >
-            <div className="bg-base rounded-2xl shadow-xl max-w-md w-full p-6">
-              <h2 className="text-2xl font-serif font-bold text-accent mb-6">Start New Trip</h2>
-              
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label htmlFor="tripName" className="block text-sm font-medium text-accent/70 mb-2">
-                    Trip Name
-                  </label>
-                  <input
-                    id="tripName"
-                    type="text"
-                    value={tripName}
-                    onChange={(e) => setTripName(e.target.value)}
-                    placeholder="Iceland '26"
-                    className="w-full px-4 py-3 bg-transparent border-b-2 border-accent/20 text-accent text-lg focus:outline-none focus:border-accent transition-colors"
-                    required
-                    autoFocus
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="userName" className="block text-sm font-medium text-accent/70 mb-2">
-                    Your Name
-                  </label>
-                  <input
-                    id="userName"
-                    type="text"
-                    value={userName}
-                    onChange={(e) => setUserName(e.target.value)}
-                    placeholder="Enter your name"
-                    className="w-full px-4 py-3 bg-transparent border-b-2 border-accent/20 text-accent text-lg focus:outline-none focus:border-accent transition-colors"
-                    required
-                  />
-                </div>
-
-                <div className="flex gap-4 pt-4">
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="flex-1 py-3 border border-accent/20 text-accent rounded-full hover:bg-accent/5 transition-colors"
-                    disabled={isSubmitting}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={!tripName.trim() || !userName.trim() || isSubmitting}
-                    className="flex-1 py-3 bg-accent text-base rounded-full font-medium disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    {isSubmitting ? 'Creating...' : 'Create Trip'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
-  )
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={submitting || !tripName.trim() || !userName.trim()}
+            className="btn-primary flex-1"
+          >
+            {submitting ? "Creating…" : "Create trip"}
+            <Icon name="arrow" width="16" />
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
 }

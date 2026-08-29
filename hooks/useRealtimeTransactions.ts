@@ -1,107 +1,131 @@
-'use client'
+"use client";
 
-import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase/client'
-import { Transaction } from '@/types/transaction'
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase/client";
+import { Transaction } from "@/types/transaction";
 
 export function useRealtimeTransactions(tripId: string | null) {
-  const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [loading, setLoading] = useState(true)
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchTransactions = async () => {
     if (!tripId) {
-      setLoading(false)
-      return
+      setLoading(false);
+      return;
     }
 
+    setLoading(true);
+    setError(null);
     const { data, error } = await supabase
-      .from('transactions')
-      .select(`
+      .from("transactions")
+      .select(
+        `
         *,
         payer:trip_members!transactions_payer_id_fkey(display_name),
         adjustments:transaction_adjustments(
           *,
           member:trip_members!transaction_adjustments_member_id_fkey(id, display_name)
         )
-      `)
-      .eq('trip_id', tripId)
-      .order('created_at', { ascending: false })
+      `,
+      )
+      .eq("trip_id", tripId)
+      .order("created_at", { ascending: false });
 
     if (!error && data) {
-      setTransactions(data as any)
+      setTransactions(data as any);
     }
-    setLoading(false)
-  }
+    if (error)
+      setError(
+        "We couldn’t load your expenses. Check your connection and try again.",
+      );
+    setLoading(false);
+  };
 
   useEffect(() => {
     if (!tripId) {
-      setLoading(false)
-      return
+      setLoading(false);
+      return;
     }
 
     // Initial fetch
-    fetchTransactions()
+    fetchTransactions();
 
     // Subscribe to realtime changes
     const channel = supabase
       .channel(`transactions:${tripId}`)
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: '*',
-          schema: 'public',
-          table: 'transactions',
+          event: "*",
+          schema: "public",
+          table: "transactions",
           filter: `trip_id=eq.${tripId}`,
         },
         async (payload) => {
-          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          if (
+            payload.eventType === "INSERT" ||
+            payload.eventType === "UPDATE"
+          ) {
             // Fetch the full transaction with relations
             const { data } = await supabase
-              .from('transactions')
-              .select(`
+              .from("transactions")
+              .select(
+                `
                 *,
                 payer:trip_members!transactions_payer_id_fkey(display_name),
                 adjustments:transaction_adjustments(
                   *,
                   member:trip_members!transaction_adjustments_member_id_fkey(id, display_name)
                 )
-              `)
-              .eq('id', payload.new.id)
-              .single()
+              `,
+              )
+              .eq("id", payload.new.id)
+              .single();
 
             if (data) {
-              const transactionData = data as any
+              const transactionData = data as any;
               setTransactions((prev) => {
-                const existing = prev.findIndex((t) => t.id === transactionData.id)
+                const existing = prev.findIndex(
+                  (t) => t.id === transactionData.id,
+                );
                 if (existing >= 0) {
-                  const updated = [...prev]
-                  updated[existing] = transactionData
-                  return updated
+                  const updated = [...prev];
+                  updated[existing] = transactionData;
+                  return updated;
                 } else {
                   return [transactionData, ...prev].sort(
                     (a, b) =>
                       new Date(b.created_at).getTime() -
-                      new Date(a.created_at).getTime()
-                  )
+                      new Date(a.created_at).getTime(),
+                  );
                 }
-              })
+              });
             }
-          } else if (payload.eventType === 'DELETE') {
-            setTransactions((prev) => prev.filter((t) => t.id !== payload.old.id))
+          } else if (payload.eventType === "DELETE") {
+            setTransactions((prev) =>
+              prev.filter((t) => t.id !== payload.old.id),
+            );
           }
-        }
+        },
       )
-      .subscribe()
+      .subscribe();
 
     return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [tripId])
+      supabase.removeChannel(channel);
+    };
+  }, [tripId]);
 
   // Expose function to manually remove a transaction (for optimistic updates)
   const removeTransaction = (transactionId: string) => {
-    setTransactions((prev) => prev.filter((t) => t.id !== transactionId))
-  }
+    setTransactions((prev) => prev.filter((t) => t.id !== transactionId));
+  };
 
-  return { transactions, loading, refetch: fetchTransactions, removeTransaction }
+  return {
+    transactions,
+    loading,
+    error,
+    refetch: fetchTransactions,
+    removeTransaction,
+  };
 }

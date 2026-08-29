@@ -1,24 +1,32 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
-import { Transaction, LineItem } from '@/types/transaction'
-import ReceiptLineItemEditor from './ReceiptLineItemEditor'
-import CustomSplitEditor from './CustomSplitEditor'
+import { useState } from "react";
+import Modal from "./Modal";
+import DeleteExpenseAction from "./DeleteExpenseAction";
+import { Transaction, LineItem } from "@/types/transaction";
+import ReceiptLineItemEditor from "./ReceiptLineItemEditor";
+import CustomSplitEditor from "./CustomSplitEditor";
+import { customSplitError } from "@/lib/transactions/splits";
 
 interface TransactionEditFormProps {
   transaction: Transaction & {
-    payer?: { display_name: string }
+    payer?: { display_name: string };
     adjustments?: Array<{
-      member_id: string
-      amount: number | string
-      member?: { id: string; display_name: string }
-    }>
-  }
-  memberNames: { id: string; name: string }[]
-  tripId: string | null
-  onSubmit: (data: Partial<Transaction> & { lineItems?: LineItem[]; adjustments?: Array<{ memberId: string; amount: number }> }) => void
-  onCancel: () => void
+      member_id: string;
+      amount: number | string;
+      member?: { id: string; display_name: string };
+    }>;
+  };
+  memberNames: { id: string; name: string }[];
+  tripId: string | null;
+  onSubmit: (
+    data: Partial<Transaction> & {
+      lineItems?: LineItem[];
+      adjustments?: Array<{ memberId: string; amount: number }>;
+    },
+  ) => void | Promise<void>;
+  onDelete?: () => void | Promise<void>;
+  onCancel: () => void;
 }
 
 export default function TransactionEditForm({
@@ -26,66 +34,106 @@ export default function TransactionEditForm({
   memberNames,
   tripId,
   onSubmit,
+  onDelete,
   onCancel,
 }: TransactionEditFormProps) {
-  const [description, setDescription] = useState(transaction.description)
-  const [totalAmount, setTotalAmount] = useState(transaction.total_amount.toString())
-  const [payerId, setPayerId] = useState(transaction.payer_id)
-  const [splitType, setSplitType] = useState<'equal' | 'custom'>(transaction.split_type)
-  const [lineItems, setLineItems] = useState<LineItem[]>(transaction.line_items || [])
-  const [adjustments, setAdjustments] = useState<Array<{ memberId: string; amount: number }>>([])
+  const [description, setDescription] = useState(transaction.description);
+  const [totalAmount, setTotalAmount] = useState(
+    transaction.total_amount.toString(),
+  );
+  const [payerId, setPayerId] = useState(transaction.payer_id);
+  const [splitType, setSplitType] = useState<"equal" | "custom">(
+    transaction.split_type,
+  );
+  const [lineItems, setLineItems] = useState<LineItem[]>(
+    transaction.line_items || [],
+  );
+  const [adjustments, setAdjustments] = useState<
+    Array<{ memberId: string; amount: number }>
+  >(() =>
+    (transaction.adjustments || [])
+      .map((a) => ({
+        memberId: a.member_id || a.member?.id || "",
+        amount: Number(a.amount),
+      }))
+      .filter((a) => a.memberId),
+  );
 
-  const isReceipt = transaction.line_items && transaction.line_items.length > 0
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Load adjustments from transaction
-    if (transaction.adjustments && transaction.adjustments.length > 0) {
-      const loadedAdjustments = transaction.adjustments.map((adj) => ({
-        memberId: adj.member_id || adj.member?.id || '',
-        amount: typeof adj.amount === 'string' ? parseFloat(adj.amount) : adj.amount,
-      })).filter(adj => adj.memberId) // Filter out invalid entries
-      setAdjustments(loadedAdjustments)
+  const isReceipt = transaction.line_items && transaction.line_items.length > 0;
+
+  const splitError =
+    !isReceipt && splitType === "custom"
+      ? customSplitError(
+          Number(totalAmount),
+          memberNames.map((m) => m.id),
+          adjustments,
+        )
+      : null;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isSaving || isDeleting) return;
+    if (splitError) {
+      setError(splitError);
+      return;
     }
-  }, [transaction.adjustments])
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+    setIsSaving(true);
+    setError(null);
 
     const submitData: Partial<Transaction> & {
-      lineItems?: LineItem[]
-      adjustments?: Array<{ memberId: string; amount: number }>
+      lineItems?: LineItem[];
+      adjustments?: Array<{ memberId: string; amount: number }>;
     } = {
       description,
       total_amount: parseFloat(totalAmount) || 0,
       payer_id: payerId,
       split_type: splitType,
-    }
+    };
 
     if (isReceipt) {
-      submitData.lineItems = lineItems
+      submitData.lineItems = lineItems;
     }
 
-    if (splitType === 'custom') {
-      submitData.adjustments = adjustments
+    if (splitType === "custom") {
+      submitData.adjustments = adjustments;
     }
 
-    onSubmit(submitData)
-  }
+    try {
+      await onSubmit(submitData);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Couldn’t save this expense. Try again.",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="fixed inset-0 bg-base z-50 p-6 overflow-y-auto"
+    <Modal
+      open={true}
+      onClose={() => {
+        if (!isSaving && !isDeleting) onCancel();
+      }}
+      title="Edit expense"
+      description="Keep the details in sync with your trip."
     >
-      <form onSubmit={handleSubmit} className="max-w-2xl mx-auto space-y-6">
-        <h2 className="text-2xl font-serif font-bold text-accent mb-6">Edit Transaction</h2>
-
+      <form onSubmit={handleSubmit} className="space-y-5">
         <div>
-          <label className="block text-sm font-medium text-accent/70 mb-2">
+          <label
+            htmlFor="edit-description"
+            className="block text-sm font-medium text-accent/70 mb-2"
+          >
             Description
           </label>
           <input
+            id="edit-description"
             type="text"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -96,10 +144,16 @@ export default function TransactionEditForm({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-accent/70 mb-2">
+          <label
+            htmlFor="edit-amount"
+            className="block text-sm font-medium text-accent/70 mb-2"
+          >
             Amount ($)
           </label>
           <input
+            id="edit-amount"
+            inputMode="decimal"
+            min="0.01"
             type="number"
             step="0.01"
             value={totalAmount}
@@ -110,10 +164,14 @@ export default function TransactionEditForm({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-accent/70 mb-2">
+          <label
+            htmlFor="edit-payer"
+            className="block text-sm font-medium text-accent/70 mb-2"
+          >
             Paid By
           </label>
           <select
+            id="edit-payer"
             value={payerId}
             onChange={(e) => setPayerId(e.target.value)}
             className="w-full px-4 py-3 bg-transparent border-b-2 border-accent/20 text-accent focus:outline-none focus:border-accent"
@@ -135,9 +193,10 @@ export default function TransactionEditForm({
               <label className="flex items-center">
                 <input
                   type="radio"
+                  name="split-type"
                   value="equal"
-                  checked={splitType === 'equal'}
-                  onChange={() => setSplitType('equal')}
+                  checked={splitType === "equal"}
+                  onChange={() => setSplitType("equal")}
                   className="mr-2"
                 />
                 Equal
@@ -145,9 +204,10 @@ export default function TransactionEditForm({
               <label className="flex items-center">
                 <input
                   type="radio"
+                  name="split-type"
                   value="custom"
-                  checked={splitType === 'custom'}
-                  onChange={() => setSplitType('custom')}
+                  checked={splitType === "custom"}
+                  onChange={() => setSplitType("custom")}
                   className="mr-2"
                 />
                 Custom
@@ -163,7 +223,7 @@ export default function TransactionEditForm({
             totalAmount={parseFloat(totalAmount) || 0}
             onChange={setLineItems}
           />
-        ) : splitType === 'custom' ? (
+        ) : splitType === "custom" ? (
           <CustomSplitEditor
             members={memberNames}
             totalAmount={parseFloat(totalAmount) || 0}
@@ -173,22 +233,36 @@ export default function TransactionEditForm({
           />
         ) : null}
 
+        {error && (
+          <p role="alert" className="text-sm text-red-800">
+            {error}
+          </p>
+        )}
         <div className="flex gap-4 pt-4">
           <button
             type="button"
             onClick={onCancel}
-            className="flex-1 py-3 border border-accent/20 text-accent rounded-full"
+            disabled={isSaving || isDeleting}
+            className="btn-secondary flex-1"
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="flex-1 py-3 bg-accent text-base rounded-full font-medium"
+            className="btn-primary flex-1"
+            disabled={isSaving || isDeleting || !!splitError}
           >
-            Save
+            {isSaving ? "Saving…" : "Save"}
           </button>
         </div>
       </form>
-    </motion.div>
-  )
+      {onDelete && (
+        <DeleteExpenseAction
+          onDelete={onDelete}
+          disabled={isSaving}
+          onBusyChange={setIsDeleting}
+        />
+      )}
+    </Modal>
+  );
 }

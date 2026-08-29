@@ -1,26 +1,30 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import MemberAvatars from './MemberAvatars'
+import { useState } from "react";
+import Link from "next/link";
+import MemberAvatars from "./MemberAvatars";
+import Icon from "./Icon";
+import Modal from "./Modal";
+import { money } from "./TransactionCard";
 
 interface Trip {
-  id: string
-  name: string
-  invite_code: string
-  created_by: string
+  id: string;
+  name: string;
+  invite_code: string;
+  created_by: string;
 }
-
-interface TripHeaderProps {
-  trip: Trip | null
-  members: Array<{ id: string; display_name: string }>
-  trips: Trip[]
-  onShare: () => void
-  onSwitchTrip: (tripId: string) => void
-  onCreateTrip: () => void
-  onViewMembers: () => void
-  onDelete?: () => void
-  isCreator?: boolean
+export interface TripHeaderProps {
+  trip: Trip | null;
+  members: Array<{ id: string; display_name: string }>;
+  trips: Trip[];
+  onShare: () => void;
+  onSwitchTrip: (tripId: string) => void;
+  onCreateTrip: () => void;
+  onViewMembers: () => void;
+  onDelete?: () => void;
+  isCreator?: boolean;
+  mobileSummary?: { total: number | null; balance: number | null };
+  basePath?: string;
 }
 
 export default function TripHeader({
@@ -32,146 +36,131 @@ export default function TripHeader({
   onCreateTrip,
   onViewMembers,
   onDelete,
-  isCreator = false,
+  isCreator,
+  mobileSummary,
+  basePath = "",
 }: TripHeaderProps) {
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
-
-  if (!trip) {
-    return null
-  }
-
-  const showDropdown = trips.length > 1
-
+  const [pickerOpen, setPickerOpen] = useState(false);
+  if (!trip) return null;
+  const balance =
+    mobileSummary?.balance == null
+      ? null
+      : Math.round(mobileSummary.balance * 100) / 100;
   return (
-    <motion.div
-      initial={{ opacity: 0, y: -20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="px-6 pt-6 pb-4"
-    >
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex-1">
-          <div className="flex items-center gap-3 mb-1">
-            <div className="relative">
-              <button
-                onClick={() => showDropdown && setIsDropdownOpen(!isDropdownOpen)}
-                className={`flex items-center gap-2 text-2xl md:text-4xl font-serif font-light text-accent break-words ${
-                  showDropdown ? 'cursor-pointer hover:text-accent/80 transition-colors' : ''
-                }`}
-              >
-                {trip.name}
-                {showDropdown && (
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    strokeWidth={1.5}
-                    stroke="currentColor"
-                    className={`w-5 h-5 md:w-6 md:h-6 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`}
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                  </svg>
-                )}
-              </button>
-
-              <AnimatePresence>
-                {isDropdownOpen && showDropdown && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-40"
-                      onClick={() => setIsDropdownOpen(false)}
-                    />
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      className="absolute top-full mt-2 left-0 bg-base border border-accent/10 rounded-lg shadow-lg z-50 min-w-[200px]"
-                    >
-                      <div className="py-2">
-                        {trips.map((t) => (
-                          <button
-                            key={t.id}
-                            onClick={() => {
-                              onSwitchTrip(t.id)
-                              setIsDropdownOpen(false)
-                            }}
-                            className={`w-full text-left px-4 py-2 text-sm hover:bg-accent/5 transition-colors ${
-                              t.id === trip.id ? 'bg-accent/10 font-medium' : ''
-                            }`}
-                          >
-                            {t.name}
-                          </button>
-                        ))}
-                        <div className="border-t border-accent/10 my-1" />
-                        <button
-                          onClick={() => {
-                            onCreateTrip()
-                            setIsDropdownOpen(false)
-                          }}
-                          className="w-full text-left px-4 py-2 text-sm text-accent/70 hover:bg-accent/5 transition-colors"
-                        >
-                          + New Trip
-                        </button>
-                      </div>
-                    </motion.div>
-                  </>
-                )}
-              </AnimatePresence>
-            </div>
-          </div>
-          <p className="text-sm text-accent/60">Created by {trip.created_by}</p>
+    <header className="mb-6 border-b border-[#e1e5dc] pb-5 lg:mb-8 lg:pb-6">
+      <div className="flex items-start justify-between gap-4 lg:items-center lg:gap-8">
+        <div className="min-w-0 flex-1">
+          <p className="eyebrow mb-1">Your trips</p>
+          <h1 className="font-serif text-[1.7rem] leading-[1.1] tracking-tight lg:text-4xl">
+            <button
+              onClick={() => setPickerOpen(true)}
+              aria-haspopup="dialog"
+              aria-expanded={pickerOpen}
+              className="flex min-h-11 w-full items-center gap-2 rounded-lg text-left hover:text-[#557344]"
+            >
+              <span className="min-w-0 break-words">{trip.name}</span>
+              <Icon name="chevron" width="18" className="shrink-0" />
+            </button>
+          </h1>
         </div>
-        <div className="flex items-center gap-3">
-          <MemberAvatars members={members} onClick={onViewMembers} />
-          <motion.button
-            onClick={onShare}
-            className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center text-accent"
-            aria-label="Share trip"
-            whileHover={{ scale: 1.05, backgroundColor: 'rgba(45, 48, 46, 0.2)' }}
-            whileTap={{ scale: 0.95 }}
-            transition={{ duration: 0.15 }}
+        {mobileSummary && (
+          <div
+            role="group"
+            aria-label="Trip spending summary"
+            className="w-[112px] shrink-0 border-l border-[#dce3d5] pl-3 lg:hidden"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={1.5}
-              stroke="currentColor"
-              className="w-5 h-5"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l10.5-5.25M10.5 19.5l-3.283-1.637m0 0a2.25 2.25 0 01-1.07-1.916V8.25m1.07 9.597a2.25 2.25 0 001.07 1.916l3.283 1.637M18.75 4.5l-3.283 1.637m0 0a2.25 2.25 0 00-1.07 1.916v8.25m1.07-10.113a2.25 2.25 0 011.07-1.916l3.283-1.637M10.5 4.5l3.283 1.637m0 0a2.25 2.25 0 011.07 1.916V19.5m-4.353-9.597a2.25 2.25 0 000 2.186m0-2.186v9.597m0 0a2.25 2.25 0 002.186 0m-2.186 0l3.283 1.637"
-              />
-            </svg>
-          </motion.button>
-          {isCreator && onDelete && (
-            <motion.button
-              onClick={onDelete}
-              className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center text-red-600"
-              aria-label="Delete trip"
-              whileHover={{ scale: 1.05, backgroundColor: 'rgba(220, 38, 38, 0.1)' }}
-              whileTap={{ scale: 0.95 }}
-              transition={{ duration: 0.15 }}
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={1.5}
-                stroke="currentColor"
-                className="w-5 h-5"
+            <Link href={`${basePath}/feed`} className="block min-h-11 pb-1">
+              <span className="block text-[10px] font-medium text-[#5e6b5f]">
+                Trip total
+              </span>
+              <span className="block break-words text-lg font-semibold leading-snug tracking-tight tabular-nums">
+                {mobileSummary.total == null ? "—" : money(mobileSummary.total)}
+              </span>
+            </Link>
+            <Link href={`${basePath}/settle`} className="block min-h-11 pt-1">
+              <span className="block text-[10px] font-medium text-[#5e6b5f]">
+                {balance == null
+                  ? "Your balance"
+                  : balance > 0
+                    ? "You’re owed"
+                    : balance < 0
+                      ? "You owe"
+                      : "All square"}
+              </span>
+              <span
+                className={`block break-words text-lg font-semibold leading-snug tracking-tight tabular-nums ${balance != null && balance < 0 ? "text-[#8b5149]" : "text-[#426536]"}`}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
-                />
-              </svg>
-            </motion.button>
-          )}
+                {balance == null ? "—" : money(Math.abs(balance))}
+              </span>
+            </Link>
+          </div>
+        )}
+        <div className="hidden items-center gap-4 lg:flex">
+          <MemberAvatars members={members} onClick={onViewMembers} />
+          <button onClick={onShare} className="btn-secondary">
+            <Icon name="people" width="17" />
+            Invite friends
+          </button>
         </div>
       </div>
-    </motion.div>
-  )
+      <div className="mt-3 flex items-center justify-between gap-3 lg:hidden">
+        <MemberAvatars members={members} onClick={onViewMembers} />
+        <button
+          onClick={onShare}
+          className="flex min-h-11 items-center gap-2 rounded-lg px-3 text-xs font-medium hover:bg-[#edf1e9]"
+        >
+          <Icon name="people" width="16" />
+          Invite friends
+        </button>
+      </div>
+      <Modal
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        title="Your trips"
+        description="Pick up where you left off, or plan something new."
+      >
+        <div className="space-y-2">
+          {trips.map((item) => (
+            <button
+              key={item.id}
+              aria-pressed={item.id === trip.id}
+              onClick={() => {
+                setPickerOpen(false);
+                if (item.id !== trip.id) onSwitchTrip(item.id);
+              }}
+              className={`flex min-h-14 w-full items-center justify-between gap-4 rounded-xl border p-4 text-left text-sm font-medium ${item.id === trip.id ? "border-[#c8d5be] bg-[#edf2e5]" : "border-[#e1e5dc] hover:bg-[#f7f9f3]"}`}
+            >
+              <span className="min-w-0 break-words">{item.name}</span>
+              <Icon
+                name={item.id === trip.id ? "check" : "arrow"}
+                width="18"
+                className="shrink-0"
+              />
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={() => {
+            setPickerOpen(false);
+            onCreateTrip();
+          }}
+          className="btn-primary mt-5 w-full"
+        >
+          <Icon name="plus" width="17" />
+          New trip
+        </button>
+        {isCreator && onDelete && (
+          <button
+            onClick={() => {
+              setPickerOpen(false);
+              onDelete();
+            }}
+            className="mt-3 min-h-11 w-full text-xs text-[#8b5149] underline underline-offset-4"
+          >
+            Delete this trip
+          </button>
+        )}
+      </Modal>
+    </header>
+  );
 }

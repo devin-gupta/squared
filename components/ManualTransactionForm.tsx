@@ -1,55 +1,116 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
-import { TransactionParsed } from '@/types/transaction'
+import { useState } from "react";
+import Modal from "./Modal";
+import DeleteExpenseAction from "./DeleteExpenseAction";
+import CustomSplitEditor from "./CustomSplitEditor";
+import { customSplitError } from "@/lib/transactions/splits";
+import { TransactionParsed } from "@/types/transaction";
 
 interface ManualTransactionFormProps {
-  initialData?: Partial<TransactionParsed>
-  memberNames: string[]
-  onSubmit: (data: TransactionParsed) => void
-  onCancel: () => void
+  tripId?: string | null;
+  initialData?: Partial<TransactionParsed>;
+  memberNames: string[];
+  onSubmit: (data: TransactionParsed) => void | Promise<void>;
+  onDelete?: () => void | Promise<void>;
+  onCancel: () => void;
 }
 
 export default function ManualTransactionForm({
   initialData,
+  tripId = null,
   memberNames,
   onSubmit,
+  onDelete,
   onCancel,
 }: ManualTransactionFormProps) {
-  const [description, setDescription] = useState(initialData?.description || '')
-  const [totalAmount, setTotalAmount] = useState(initialData?.total_amount?.toString() || '')
-  const [payerName, setPayerName] = useState(initialData?.payer_name || '')
-  const [splitType, setSplitType] = useState<'equal' | 'custom'>(initialData?.split_type || 'equal')
+  const [description, setDescription] = useState(
+    initialData?.description || "",
+  );
+  const [totalAmount, setTotalAmount] = useState(
+    initialData?.total_amount?.toString() || "",
+  );
+  const [payerName, setPayerName] = useState(initialData?.payer_name || "");
+  const [splitType, setSplitType] = useState<"equal" | "custom">(
+    initialData?.split_type || "equal",
+  );
+  const [adjustments, setAdjustments] = useState(() =>
+    memberNames.map((name) => ({
+      memberId: name,
+      amount: Number(
+        initialData?.adjustments?.find((a) => a.user_name === name)?.amount ??
+          0,
+      ),
+    })),
+  );
+  const splitError =
+    splitType === "custom"
+      ? customSplitError(Number(totalAmount), memberNames, adjustments)
+      : null;
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isSaving || isDeleting) return;
+    if (splitError) {
+      setError(splitError);
+      return;
+    }
+    setIsSaving(true);
+    setError(null);
 
     const parsed: TransactionParsed = {
       description,
       total_amount: parseFloat(totalAmount) || 0,
       payer_name: payerName || undefined,
       split_type: splitType,
-      adjustments: splitType === 'custom' ? initialData?.adjustments : undefined,
-    }
+      adjustments:
+        splitType === "custom"
+          ? adjustments.map((a) => ({
+              user_name: a.memberId,
+              amount: a.amount,
+            }))
+          : undefined,
+    };
 
-    onSubmit(parsed)
-  }
+    try {
+      await onSubmit(parsed);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Couldn’t save this expense. Try again.",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="fixed inset-0 bg-base z-50 p-6 overflow-y-auto"
+    <Modal
+      open={true}
+      onClose={() => {
+        if (!isSaving && !isDeleting) onCancel();
+      }}
+      title={onDelete ? "Edit expense" : "A little detail goes a long way."}
+      description={
+        onDelete
+          ? "Update the details or delete this expense."
+          : "Add an expense and tell us who picked up the tab."
+      }
     >
-      <form onSubmit={handleSubmit} className="max-w-md mx-auto space-y-6">
-          <h2 className="text-2xl font-serif font-bold text-accent mb-6">Enter Transaction Details</h2>
-
+      <form onSubmit={handleSubmit} className="space-y-5">
         <div>
-          <label className="block text-sm font-medium text-accent/70 mb-2">
+          <label
+            htmlFor="expense-description"
+            className="block text-sm font-medium text-accent/70 mb-2"
+          >
             Description
           </label>
           <input
+            id="expense-description"
             type="text"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -60,11 +121,17 @@ export default function ManualTransactionForm({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-accent/70 mb-2">
+          <label
+            htmlFor="expense-amount"
+            className="block text-sm font-medium text-accent/70 mb-2"
+          >
             Amount ($)
           </label>
           <input
+            id="expense-amount"
             type="number"
+            inputMode="decimal"
+            min="0.01"
             step="0.01"
             value={totalAmount}
             onChange={(e) => setTotalAmount(e.target.value)}
@@ -74,10 +141,14 @@ export default function ManualTransactionForm({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-accent/70 mb-2">
+          <label
+            htmlFor="expense-payer"
+            className="block text-sm font-medium text-accent/70 mb-2"
+          >
             Paid By
           </label>
           <select
+            id="expense-payer"
             value={payerName}
             onChange={(e) => setPayerName(e.target.value)}
             className="w-full px-4 py-3 bg-transparent border-b-2 border-accent/20 text-accent focus:outline-none focus:border-accent"
@@ -96,45 +167,73 @@ export default function ManualTransactionForm({
             Split Type
           </label>
           <div className="flex gap-4">
-            <label className="flex items-center">
+            <label className="flex min-h-11 items-center">
               <input
                 type="radio"
+                name="split-type"
                 value="equal"
-                checked={splitType === 'equal'}
-                onChange={() => setSplitType('equal')}
+                checked={splitType === "equal"}
+                onChange={() => setSplitType("equal")}
                 className="mr-2"
               />
               Equal
             </label>
-            <label className="flex items-center">
-              <input
-                type="radio"
-                value="custom"
-                checked={splitType === 'custom'}
-                onChange={() => setSplitType('custom')}
-                className="mr-2"
-              />
-              Custom
-            </label>
+            {
+              <label className="flex min-h-11 items-center">
+                <input
+                  type="radio"
+                  name="split-type"
+                  value="custom"
+                  checked={splitType === "custom"}
+                  onChange={() => setSplitType("custom")}
+                  className="mr-2"
+                />
+                Custom
+              </label>
+            }
           </div>
         </div>
 
+        {splitType === "custom" && (
+          <CustomSplitEditor
+            members={memberNames.map((name) => ({ id: name, name }))}
+            totalAmount={Number(totalAmount) || 0}
+            tripId={tripId}
+            existingAdjustments={adjustments}
+            onChange={setAdjustments}
+          />
+        )}
+
+        {error && (
+          <p role="alert" className="text-sm text-red-700">
+            {error}
+          </p>
+        )}
         <div className="flex gap-4 pt-4">
           <button
             type="button"
             onClick={onCancel}
-            className="flex-1 py-3 border border-accent/20 text-accent rounded-full"
+            className="btn-secondary flex-1"
+            disabled={isSaving || isDeleting}
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="flex-1 py-3 bg-accent text-base rounded-full font-medium"
+            className="btn-primary flex-1"
+            disabled={isSaving || isDeleting || !!splitError}
           >
-            Save
+            {isSaving ? "Saving…" : "Save"}
           </button>
         </div>
       </form>
-    </motion.div>
-  )
+      {onDelete && (
+        <DeleteExpenseAction
+          onDelete={onDelete}
+          disabled={isSaving}
+          onBusyChange={setIsDeleting}
+        />
+      )}
+    </Modal>
+  );
 }

@@ -3,15 +3,17 @@
 ## Quick Start
 
 1. **Install dependencies:**
+
    ```bash
    npm install
    ```
 
 2. **Set up environment variables** - Create a `.env.local` file:
+
    ```env
    NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
-   OPENAI_API_KEY=your_openai_api_key
+   OPENROUTER_API_KEY=your_openrouter_api_key
    ```
 
 3. **Run database migration** - See Step 2 below
@@ -30,12 +32,16 @@ Create a `.env.local` file in the root directory with the following content:
 ```env
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
-OPENAI_API_KEY=your_openai_api_key
+OPENROUTER_API_KEY=your_openrouter_api_key
 ```
 
 **Important Notes:**
+
 - The code expects `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (Supabase's new publishable key format)
 - Replace the placeholder values with your actual credentials
+- AI uses only `openrouter/free`, with no paid fallback. Free models have shared usage limits and varying availability; manual entry remains available.
+- AI requests require a signed-in trip member. Keep `OPENROUTER_API_KEY` server-only and out of Git.
+- Receipt uploads support JPEG, PNG, or WebP up to 4 MB; HEIC must be converted before upload.
 - You can find your publishable key in Supabase Dashboard → Settings → API → Publishable key
 
 ## Step 2: Run Database Migration
@@ -84,7 +90,7 @@ After creating the bucket, you need to set up policies to allow public read acce
 5. Configure the policy:
    - **Policy name:** `Public read access`
    - **Allowed operation:** `SELECT` (for reading)
-   - **Policy definition:** 
+   - **Policy definition:**
      ```sql
      (bucket_id = 'receipts')
      ```
@@ -136,15 +142,21 @@ The app should now be running at `http://localhost:3000`
 
 ## Production Deployment
 
-### Vercel Deployment
+### Automatic deployment for this repository
+
+The existing `squared` Vercel project is connected to `devin-gupta/squared`, with `main` as the production branch. Push or merge into `main` to deploy the main site; other branches produce previews subject to Vercel’s contributor authorization. `.github/workflows/ci.yml` checks pushes and pull requests without production credentials. `vercel.json` independently runs the same tests/build before deploying, so failed checks leave the current production deployment intact.
+
+Use Node.js 24 and `npm ci` to reproduce CI. Run `npm test` for regressions or `npm run check` for tests plus the production build. Supabase schema migrations require a separate reviewed change; deployment does not execute them.
+
+### Connecting a new Vercel project
 
 1. Push your code to GitHub/GitLab/Bitbucket
 2. Go to [vercel.com](https://vercel.com) and import your repository
 3. Add environment variables in Vercel project settings:
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-   - `OPENAI_API_KEY`
-4. Deploy - Vercel will automatically detect Next.js and build
+   - `OPENROUTER_API_KEY` (mark Sensitive for Production and Preview; never prefix with `NEXT_PUBLIC_`)
+4. Deploy — Vercel detects Next.js, installs from the lockfile, runs the regression tests, and builds. A successful production-branch build is promoted automatically.
 
 The `vercel.json` file is already configured with proper PWA headers and caching strategies.
 
@@ -153,9 +165,9 @@ The `vercel.json` file is already configured with proper PWA headers and caching
 ### Migration Errors
 
 If you get errors about tables already existing:
-- The migration is idempotent, but if tables exist, you may need to drop them first
-- Go to **SQL Editor** and run: `DROP TABLE IF EXISTS transaction_adjustments CASCADE; DROP TABLE IF EXISTS transactions CASCADE; DROP TABLE IF EXISTS trip_members CASCADE; DROP TABLE IF EXISTS trips CASCADE;`
-- Then re-run the migration
+
+- Inspect the existing schema and migration history before making changes.
+- Back up the database and use an incremental migration; never drop production expense tables to resolve a setup error.
 
 ### Storage Upload Errors
 

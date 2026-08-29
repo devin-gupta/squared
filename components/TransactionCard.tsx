@@ -1,125 +1,105 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Transaction } from '@/types/transaction'
+import { useId, useState } from "react";
+import { Transaction } from "@/types/transaction";
+import Icon from "./Icon";
+import type { TransactionWithShares } from "@/lib/statistics/personal";
 
-interface TransactionCardProps {
-  transaction: Transaction & { payer?: { display_name: string } }
-  onEdit?: () => void
-  onDelete?: () => void
-  canEdit?: boolean
-}
+export type DisplayTransaction = TransactionWithShares & {
+  payer?: { display_name: string };
+  category?: string;
+};
+export const money = (amount: number) =>
+  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
+    amount,
+  );
 
 export default function TransactionCard({
   transaction,
   onEdit,
   onDelete,
   canEdit = false,
-}: TransactionCardProps) {
-  const [isExpanded, setIsExpanded] = useState(false)
-  const isRecent = new Date(transaction.created_at).getTime() > Date.now() - 5000
-
-  const formatAmount = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount)
-  }
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffMs = now.getTime() - date.getTime()
-    const diffMins = Math.floor(diffMs / 60000)
-
-    if (diffMins < 1) return 'JUST NOW'
-    if (diffMins < 60) return `${diffMins}M AGO`
-    if (diffMins < 1440) return `${Math.floor(diffMins / 60)}H AGO`
-    return date.toLocaleDateString()
-  }
-
+}: {
+  transaction: DisplayTransaction;
+  onEdit?: () => void;
+  onDelete?: () => void;
+  canEdit?: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const detailsId = useId();
+  const opensEditor = canEdit && !!onEdit;
+  const category =
+    transaction.category || transaction.line_items?.[0]?.category || "Expense";
+  const icon = /food|dining|coffee|drink/i.test(category)
+    ? "coffee"
+    : /stay|accommodation|lodging/i.test(category)
+      ? "home"
+      : /transport|activity|travel/i.test(category)
+        ? "travel"
+        : "ledger";
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      whileHover={{ scale: 1.01, backgroundColor: 'rgba(45, 48, 46, 0.08)' }}
-      transition={{ duration: 0.15 }}
-      className="px-4 py-3 bg-accent/6 border border-accent/15 rounded-lg mb-3 cursor-pointer shadow-sm hover:shadow-md transition-shadow"
-      onClick={() => setIsExpanded(!isExpanded)}
-    >
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
-          <div className="text-base font-serif font-light mb-1" style={{ color: 'rgb(45, 48, 46)' }}>
+    <article className="border-b border-[#edf0e8] last:border-b-0">
+      <button
+        onClick={() => (opensEditor ? onEdit?.() : setExpanded(!expanded))}
+        aria-expanded={opensEditor ? undefined : expanded}
+        aria-controls={opensEditor ? undefined : detailsId}
+        aria-haspopup={opensEditor ? "dialog" : undefined}
+        className="flex w-full items-center gap-3 rounded-lg px-3 py-4 text-left transition-colors hover:bg-[#f8faf5] sm:gap-4 sm:px-5"
+      >
+        <span className="icon-tile h-10 w-10">
+          <Icon name={icon} width="18" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium">
             {transaction.description}
+          </span>
+          <span className="mt-1 block text-xs text-[#5e6b5f]">
+            {transaction.payer?.display_name || "Unknown payer"} paid{" "}
+            <span className="mx-1 text-[#a6afa1]">·</span>{" "}
+            {transaction.split_type === "equal"
+              ? "Split equally"
+              : "Custom split"}
+          </span>
+        </span>
+        <span className="hidden text-xs text-[#5e6b5f] md:block">
+          {new Date(transaction.created_at).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+          })}
+        </span>
+        <span className="shrink-0 text-right">
+          <span className="block text-sm font-semibold tabular-nums">
+            {money(Number(transaction.total_amount))}
+          </span>
+          <span className="mt-1 block text-[10px] text-[#5e6b5f]">
+            {category}
+          </span>
+        </span>
+        <Icon
+          name="chevron"
+          width="14"
+          className={`shrink-0 text-[#8a9784] transition-transform ${opensEditor ? "-rotate-90" : expanded ? "rotate-180" : ""}`}
+        />
+      </button>
+      {expanded && (
+        <div
+          id={detailsId}
+          className="mx-4 mb-4 rounded-xl bg-[#f6f8f2] p-4 text-xs text-[#5e6b5f]"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span>
+              {new Date(transaction.created_at).toLocaleString()} ·{" "}
+              {transaction.status}
+            </span>
           </div>
-          <div className="text-xs uppercase tracking-wide text-accent/60 mb-1 font-sans">
-            PAID BY {transaction.payer?.display_name?.toUpperCase() || 'UNKNOWN'}
-          </div>
-          <div className="text-xs text-accent/40 font-sans">
-            {formatDate(transaction.created_at)}
-          </div>
-        </div>
-        <div className="text-lg font-serif font-light ml-4" style={{ color: 'rgb(45, 48, 46)' }}>
-          {formatAmount(transaction.total_amount)}
-        </div>
-      </div>
-
-      <AnimatePresence>
-        {isExpanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            className="overflow-hidden mt-4"
-          >
-            <div className="pt-4 mt-4 border-t border-accent/10 space-y-3">
-              <div className="text-sm text-accent/70">
-                <div className="flex items-center justify-between">
-                  <span>Split: {transaction.split_type}</span>
-                  {canEdit && (
-                    <div className="flex gap-3 ml-auto">
-                      {onEdit && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            onEdit()
-                          }}
-                          className="text-sm text-accent/60 hover:text-accent"
-                        >
-                          Edit
-                        </button>
-                      )}
-                      {onDelete && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            onDelete()
-                          }}
-                          className="text-sm text-red-600 hover:text-red-700"
-                        >
-                          Delete
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-                {transaction.line_items && transaction.line_items.length > 0 && (
-                  <div className="mt-2">
-                    <div className="font-medium mb-1">Line Items:</div>
-                    {(transaction.line_items as any[]).map((item, idx) => (
-                      <div key={idx} className="text-xs ml-2">
-                        {item.description}: {formatAmount(item.amount)} ({item.category})
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+          {transaction.line_items?.map((item, i) => (
+            <div key={i} className="mt-2 flex justify-between gap-3">
+              <span>{item.description}</span>
+              <span className="tabular-nums">{money(item.amount)}</span>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
-  )
+          ))}
+        </div>
+      )}
+    </article>
+  );
 }

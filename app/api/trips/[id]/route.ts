@@ -1,43 +1,66 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { deleteTrip } from '@/lib/trips/delete'
-import { supabase } from '@/lib/supabase/client'
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+import { deleteTrip, TripDeleteError } from "@/lib/trips/delete";
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> | { id: string } }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const resolvedParams = await Promise.resolve(params)
-    const tripId = resolvedParams.id
-
-    // Get authenticated user
-    const authHeader = request.headers.get('authorization')
-    if (!authHeader) {
+    const token = request.headers
+      .get("authorization")
+      ?.match(/^Bearer (\S+)$/i)?.[1];
+    if (!token) {
       return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
+        { error: "Sign in before deleting a trip." },
+        { status: 401 },
+      );
+    }
+    const { id: tripId } = await params;
+    if (
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        tripId,
       )
+    ) {
+      return NextResponse.json({ error: "Invalid trip ID." }, { status: 400 });
     }
 
-    // Get user from Supabase auth
-    const token = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
-
+    const client = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+      {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+          detectSessionInUrl: false,
+        },
+        global: { headers: { Authorization: `Bearer ${token}` } },
+      },
+    );
+    const {
+      data: { user },
+      error: authError,
+    } = await client.auth.getUser(token);
     if (authError || !user) {
       return NextResponse.json(
-        { error: 'Invalid authentication' },
-        { status: 401 }
-      )
+        { error: "Your sign-in expired. Please sign in again." },
+        { status: 401 },
+      );
     }
 
-    await deleteTrip(tripId, user.id)
-
-    return NextResponse.json({ success: true })
+    await deleteTrip(client, tripId, user.id);
+    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error deleting trip:', error)
+    if (error instanceof TripDeleteError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.status },
+      );
+    }
+    console.error("Unexpected trip delete failure");
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to delete trip' },
-      { status: 500 }
-    )
+      { error: "Couldn’t delete this trip. Please try again." },
+      { status: 500 },
+    );
   }
 }

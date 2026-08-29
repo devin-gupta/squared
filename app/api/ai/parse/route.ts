@@ -1,39 +1,34 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { parseTransactionText } from '@/lib/ai/parser'
-import { supabase } from '@/lib/supabase/client'
+import { NextRequest, NextResponse } from "next/server";
+import { AIServiceError, parseTransactionText } from "@/lib/ai/parser";
+import { AIRequestError, requireAIContext } from "@/lib/ai/context";
+
+export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   try {
-    const { text, tripId } = await request.json()
-
-    if (!text || typeof text !== 'string') {
+    if (!request.headers.get("authorization"))
       return NextResponse.json(
-        { error: 'Text is required' },
-        { status: 400 }
-      )
-    }
-
-    // Get member names for context
-    let memberNames: string[] = []
-    if (tripId) {
-      const { data: members } = await supabase
-        .from('trip_members')
-        .select('display_name')
-        .eq('trip_id', tripId)
-
-      if (members && Array.isArray(members)) {
-        memberNames = members.map((m) => (m as { display_name: string }).display_name)
-      }
-    }
-
-    const parsed = await parseTransactionText(text, memberNames)
-
-    return NextResponse.json({ parsed })
+        { error: "Sign in to use AI entry." },
+        { status: 401 },
+      );
+    const { text, tripId } = await request.json();
+    if (typeof text !== "string" || !text.trim() || text.length > 8000)
+      return NextResponse.json(
+        { error: "Enter a description of up to 8,000 characters." },
+        { status: 400 },
+      );
+    const { memberNames } = await requireAIContext(request, tripId);
+    const parsed = await parseTransactionText(text, memberNames);
+    return NextResponse.json({ parsed });
   } catch (error) {
-    console.error('Error parsing transaction:', error)
+    if (error instanceof AIServiceError || error instanceof AIRequestError)
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.status },
+      );
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to parse transaction' },
-      { status: 500 }
-    )
+      { error: "Couldn’t read this expense. Please try manual entry." },
+      { status: 500 },
+    );
   }
 }

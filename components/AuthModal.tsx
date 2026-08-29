@@ -1,126 +1,160 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { useAuth } from '@/hooks/useAuth'
+import { useEffect, useRef, useState } from "react";
+import { isAuthRetryableFetchError } from "@supabase/supabase-js";
+import { useAuth } from "@/hooks/useAuth";
+import Modal from "./Modal";
+import Icon from "./Icon";
+import { rememberedEmail } from "@/lib/auth/preferences";
 
-interface AuthModalProps {
-  isOpen: boolean
-  onClose?: () => void
-}
-
-export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
-  const { signIn } = useAuth()
-  const [email, setEmail] = useState('')
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isSuccess, setIsSuccess] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!email.trim()) {
-      return
+export default function AuthModal({
+  isOpen,
+  onClose,
+  inviteCode,
+  notice,
+}: {
+  isOpen: boolean;
+  onClose?: () => void;
+  inviteCode?: string | null;
+  notice?: string;
+}) {
+  const { signIn } = useAuth();
+  const [email, setEmail] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const emailInput = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (isOpen && !success) {
+      setEmail((current) => current || rememberedEmail());
+      emailInput.current?.focus({ preventScroll: true });
     }
-
-    setIsSubmitting(true)
-    setError(null)
-    setIsSuccess(false)
-
+  }, [isOpen, success]);
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim() || submitting) return;
+    setSubmitting(true);
+    setError(null);
     try {
-      await signIn(email.trim())
-      setIsSuccess(true)
+      await signIn(email.trim(), inviteCode);
+      setSuccess(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send magic link')
+      setError(
+        isAuthRetryableFetchError(err)
+          ? "We couldn’t reach the sign-in service. Check your connection and try again in a moment."
+          : err instanceof Error
+            ? err.message
+            : "Couldn’t send your link. Please try again.",
+      );
     } finally {
-      setIsSubmitting(false)
+      setSubmitting(false);
     }
-  }
-
+  };
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-accent/20 backdrop-blur-sm z-50"
-            onClick={onClose}
-          />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="fixed inset-0 flex items-center justify-center z-50 p-6"
-            onClick={(e) => e.stopPropagation()}
+    <Modal
+      open={isOpen}
+      onClose={() => onClose?.()}
+      title={
+        success
+          ? "Check your inbox."
+          : inviteCode
+            ? "Sign in to join the trip."
+            : "Welcome to Squared."
+      }
+      description={
+        success
+          ? "Your sign-in link is on its way."
+          : inviteCode
+            ? "Your invite is saved. One email link and you’re in."
+            : "One email link. We’ll remember you on this browser."
+      }
+    >
+      {success ? (
+        <div role="status">
+          <span className="icon-tile mb-5">
+            <Icon name="mail" />
+          </span>
+          <p className="muted">
+            We sent a magic link to{" "}
+            <strong className="break-all text-accent">{email}</strong>. Open it
+            to continue. If you don’t see it, check your spam folder.
+          </p>
+          {inviteCode && (
+            <p className="mt-4 text-sm">
+              After sign-in, we’ll open the invited trip automatically. You
+              don’t need to create a trip.
+            </p>
+          )}
+          <p className="muted mt-4 text-xs">
+            On iPhone, open the link in the browser where you use Squared.
+            Private browsing and in-app browsers can keep separate sign-ins.
+          </p>
+          <button
+            onClick={() => {
+              setSuccess(false);
+              setError(null);
+            }}
+            className="btn-secondary mt-6 w-full"
           >
-            <div className="bg-base rounded-2xl shadow-xl max-w-md w-full p-6">
-              <h2 className="text-2xl font-serif font-bold text-accent mb-6">Sign In</h2>
-
-              {isSuccess ? (
-                <div className="space-y-4">
-                  <div className="text-accent/70">
-                    <p className="mb-2">Check your email!</p>
-                    <p className="text-sm">
-                      We've sent you a magic link. Click the link in your email to sign in.
-                    </p>
-                  </div>
-                  {onClose && (
-                    <button
-                      onClick={onClose}
-                      className="w-full py-3 bg-accent text-base rounded-full font-medium"
-                    >
-                      Got it
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div>
-                    <label htmlFor="email" className="block text-sm font-medium text-accent/70 mb-2">
-                      Email Address
-                    </label>
-                    <input
-                      id="email"
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="your@email.com"
-                      className="w-full px-4 py-3 bg-transparent border-b-2 border-accent/20 text-accent text-lg focus:outline-none focus:border-accent transition-colors"
-                      required
-                      autoFocus
-                    />
-                  </div>
-
-                  {error && (
-                    <div className="text-sm text-red-600">{error}</div>
-                  )}
-
-                  <div className="flex gap-4 pt-4">
-                    {onClose && (
-                      <button
-                        type="button"
-                        onClick={onClose}
-                        className="flex-1 py-3 border border-accent/20 text-accent rounded-full hover:bg-accent/5 transition-colors"
-                        disabled={isSubmitting}
-                      >
-                        Cancel
-                      </button>
-                    )}
-                    <button
-                      type="submit"
-                      disabled={!email.trim() || isSubmitting}
-                      className="flex-1 py-3 bg-accent text-base rounded-full font-medium disabled:opacity-30 disabled:cursor-not-allowed"
-                    >
-                      {isSubmitting ? 'Sending...' : 'Send Magic Link'}
-                    </button>
-                  </div>
-                </form>
-              )}
-            </div>
-          </motion.div>
-        </>
+            Use a different email
+          </button>
+        </div>
+      ) : (
+        <form onSubmit={submit} className="space-y-5">
+          {notice && (
+            <p
+              role="alert"
+              className="rounded-xl bg-red-50 p-3 text-sm text-red-800"
+            >
+              {notice}
+            </p>
+          )}
+          <div>
+            <label
+              htmlFor="sign-in-email"
+              className="mb-2 block text-sm font-medium"
+            >
+              Email address
+            </label>
+            <input
+              ref={emailInput}
+              id="sign-in-email"
+              autoComplete="email"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              required
+              autoFocus
+              className="w-full"
+              disabled={submitting}
+            />
+          </div>
+          {error && (
+            <p
+              role="alert"
+              className="rounded-xl bg-red-50 p-3 text-sm text-red-800"
+            >
+              {error}
+            </p>
+          )}
+          <button
+            type="submit"
+            className="btn-primary w-full"
+            disabled={submitting || !email.trim()}
+          >
+            {submitting ? "Sending your link…" : "Send me a magic link"}
+            <Icon name="arrow" width="17" />
+          </button>
+          <p className="text-center text-xs text-[#5e6b5f]">
+            You’ll stay signed in on this browser until you sign out or your
+            session needs renewing.
+          </p>
+        </form>
       )}
-    </AnimatePresence>
-  )
+    </Modal>
+  );
 }

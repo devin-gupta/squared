@@ -1,67 +1,73 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { User } from '@supabase/supabase-js'
-import { supabase } from '@/lib/supabase/client'
+import { useSyncExternalStore } from "react";
+import type { User } from "@supabase/supabase-js";
+import { supabase } from "@/lib/supabase/client";
+import {
+  clearDevicePreferences,
+  normalizeInvite,
+  pendingInvite,
+  rememberEmail,
+  rememberInvite,
+  signInRedirect,
+} from "@/lib/auth/preferences";
 
 interface AuthState {
-  user: User | null
-  loading: boolean
+  user: User | null;
+  loading: boolean;
 }
+const initialState: AuthState = { user: null, loading: true };
+let state = initialState;
+const listeners = new Set<() => void>();
+let started = false;
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  if (!started) {
+    started = true;
+    // One session observer for the whole app. INITIAL_SESSION waits for stored
+    // session recovery/refresh, avoiding a separate, racing getSession request.
+    supabase.auth.onAuthStateChange((_event, session) => {
+      state = { user: session?.user ?? null, loading: false };
+      listeners.forEach((notify) => notify());
+    });
+  }
+  return () => {
+    listeners.delete(listener);
+  };
+}
+const getSnapshot = () => state;
+const getServerSnapshot = () => initialState;
 
+async function signIn(email: string, inviteCode?: string | null) {
+  const url = new URL(window.location.href);
+  const fromUrl = url.searchParams.get("code");
+  if (url.searchParams.has("code") && !normalizeInvite(fromUrl)) {
+    throw new Error(
+      "This invite is incomplete. Ask your friend for a fresh link.",
+    );
+  }
+  const invite = normalizeInvite(inviteCode || fromUrl) || pendingInvite();
+  if (invite) rememberInvite(invite);
+  const { error } = await supabase.auth.signInWithOtp({
+    email,
+    options: {
+      emailRedirectTo: signInRedirect(window.location.origin, invite),
+    },
+  });
+  if (error) throw error;
+  rememberEmail(email);
+}
+async function signOut() {
+  // Signing out here should not sign the user out of their other devices.
+  const { error } = await supabase.auth.signOut({ scope: "local" });
+  if (error) throw error;
+  clearDevicePreferences();
+}
 export function useAuth() {
-  const [authState, setAuthState] = useState<AuthState>({
-    user: null,
-    loading: true,
-  })
-
-  useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setAuthState({
-        user: session?.user ?? null,
-        loading: false,
-      })
-    })
-
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setAuthState({
-        user: session?.user ?? null,
-        loading: false,
-      })
-    })
-
-    return () => subscription.unsubscribe()
-  }, [])
-
-  const signIn = async (email: string) => {
-    // Use window.location.origin to get the current domain (works in both dev and production)
-    // In production, this will be the Vercel deployment URL
-    const redirectUrl = typeof window !== 'undefined' 
-      ? `${window.location.origin}/`
-      : '/'
-    
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: redirectUrl,
-      },
-    })
-    if (error) throw error
-  }
-
-  const signOut = async () => {
-    const { error } = await supabase.auth.signOut()
-    if (error) throw error
-  }
-
-  return {
-    user: authState.user,
-    loading: authState.loading,
-    signIn,
-    signOut,
-  }
+  const snapshot = useSyncExternalStore(
+    subscribe,
+    getSnapshot,
+    getServerSnapshot,
+  );
+  return { ...snapshot, signIn, signOut };
 }

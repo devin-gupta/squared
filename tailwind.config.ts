@@ -1,27 +1,39 @@
-import type { Config } from 'tailwindcss'
+import type { Config } from "tailwindcss";
 
 const config: Config = {
   content: [
-    './pages/**/*.{js,ts,jsx,tsx,mdx}',
-    './components/**/*.{js,ts,jsx,tsx,mdx}',
-    './app/**/*.{js,ts,jsx,tsx,mdx}',
+    "./pages/**/*.{js,ts,jsx,tsx,mdx}",
+    "./components/**/*.{js,ts,jsx,tsx,mdx}",
+    "./app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
     extend: {
       colors: {
-        base: '#F9F9F8',
-        accent: '#2D302E',
-        success: '#D1E8E2',
+        base: "#F6F7F3",
+        accent: "#223C32",
+        success: "#DFEAD6",
       },
       fontFamily: {
-        sans: ['Inter', 'sans-serif'],
-        serif: ['Crimson Pro', 'serif'],
+        sans: [
+          "Inter",
+          "-apple-system",
+          "BlinkMacSystemFont",
+          "Segoe UI",
+          "sans-serif",
+        ],
+        serif: [
+          "Iowan Old Style",
+          "Palatino Linotype",
+          "Book Antiqua",
+          "Georgia",
+          "serif",
+        ],
       },
       fontWeight: {
-        light: '300',
+        light: "300",
       },
     },
   },
   plugins: [],
-}
-export default config
+};
+export default config;

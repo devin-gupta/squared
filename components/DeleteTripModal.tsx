@@ -1,14 +1,6 @@
-'use client'
+"use client";
 
-import { motion, AnimatePresence } from 'framer-motion'
-
-interface DeleteTripModalProps {
-  isOpen: boolean
-  onClose: () => void
-  onConfirm: () => void
-  tripName: string
-  isDeleting?: boolean
-}
+import Modal from "./Modal";
 
 export default function DeleteTripModal({
   isOpen,
@@ -16,59 +8,53 @@ export default function DeleteTripModal({
   onConfirm,
   tripName,
   isDeleting = false,
-}: DeleteTripModalProps) {
+  error,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  tripName: string;
+  isDeleting?: boolean;
+  error?: string | null;
+}) {
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-accent/20 backdrop-blur-sm z-50"
-            onClick={onClose}
-          />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="fixed inset-0 flex items-center justify-center z-50 p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="bg-base rounded-2xl shadow-xl max-w-md w-full p-6">
-              <h2 className="text-2xl font-serif font-bold text-accent mb-4">Delete Trip</h2>
-
-              <div className="mb-6">
-                <p className="text-accent/70 mb-2">
-                  Are you sure you want to delete <strong>{tripName}</strong>?
-                </p>
-                <p className="text-sm text-red-600">
-                  This will permanently delete the trip and all its transactions. This action cannot be undone.
-                </p>
-              </div>
-
-              <div className="flex gap-4 pt-4">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="flex-1 py-3 border border-accent/20 text-accent rounded-full hover:bg-accent/5 transition-colors"
-                  disabled={isDeleting}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={onConfirm}
-                  disabled={isDeleting}
-                  className="flex-1 py-3 bg-red-600 text-white rounded-full font-medium disabled:opacity-30 disabled:cursor-not-allowed hover:bg-red-700 transition-colors"
-                >
-                  {isDeleting ? 'Deleting...' : 'Delete Trip'}
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        </>
+    <Modal
+      open={isOpen}
+      onClose={() => {
+        if (!isDeleting) onClose();
+      }}
+      title="Delete this trip?"
+      description={tripName}
+    >
+      <p className="rounded-xl bg-red-50 p-4 text-sm leading-relaxed text-red-800">
+        This permanently deletes the trip and all its expenses. This action
+        can’t be undone.
+      </p>
+      {error && (
+        <p
+          role="alert"
+          className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"
+        >
+          {error}
+        </p>
       )}
-    </AnimatePresence>
-  )
+      <div className="mt-6 flex gap-3">
+        <button
+          onClick={onClose}
+          className="btn-secondary flex-1"
+          disabled={isDeleting}
+          autoFocus
+        >
+          Keep trip
+        </button>
+        <button
+          onClick={onConfirm}
+          disabled={isDeleting}
+          className="btn-primary flex-1 !bg-[#a04436] hover:!bg-[#8c362a]"
+        >
+          {isDeleting ? "Deleting…" : "Delete trip"}
+        </button>
+      </div>
+    </Modal>
+  );
 }

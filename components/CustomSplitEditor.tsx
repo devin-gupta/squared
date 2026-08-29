@@ -1,17 +1,20 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
+import { useId, useState } from "react";
+import { aiRequestHeaders } from "@/lib/ai/client-headers";
+import {
+  customSplitError,
+  equalAllocations,
+  SplitAllocation,
+} from "@/lib/transactions/splits";
 
 interface CustomSplitEditorProps {
-  members: { id: string; name: string }[]
-  totalAmount: number
-  tripId: string | null
-  existingAdjustments?: { memberId: string; amount: number }[]
-  onChange: (adjustments: { memberId: string; amount: number }[]) => void
+  members: { id: string; name: string }[];
+  totalAmount: number;
+  tripId?: string | null;
+  existingAdjustments?: SplitAllocation[];
+  onChange: (adjustments: SplitAllocation[]) => void;
 }
-
-type EditorMode = 'manual' | 'llm'
 
 export default function CustomSplitEditor({
   members,
@@ -20,223 +23,199 @@ export default function CustomSplitEditor({
   existingAdjustments = [],
   onChange,
 }: CustomSplitEditorProps) {
-  const [mode, setMode] = useState<EditorMode>('manual')
-  const [adjustments, setAdjustments] = useState<{ memberId: string; amount: number }[]>([])
-  const [llmInput, setLlmInput] = useState('')
-  const [isParsing, setIsParsing] = useState(false)
-  const [parseError, setParseError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (existingAdjustments.length > 0) {
-      setAdjustments(existingAdjustments)
-    } else {
-      // Initialize with all members at 0
-      setAdjustments(
-        members.map((m) => ({
-          memberId: m.id,
-          amount: 0,
-        }))
-      )
-    }
-  }, [members, existingAdjustments])
-
-  const handleAmountChange = (memberId: string, amount: string) => {
-    const numAmount = parseFloat(amount) || 0
-    const updated = adjustments.map((adj) =>
-      adj.memberId === memberId ? { ...adj, amount: numAmount } : adj
-    )
-    setAdjustments(updated)
-    onChange(updated)
-  }
-
-  const handleParseLlm = async () => {
-    if (!llmInput.trim()) return
-
-    setIsParsing(true)
-    setParseError(null)
-
+  const groupId = useId();
+  const [amounts, setAmounts] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      members.map((m) => [
+        m.id,
+        String(
+          existingAdjustments.find((a) => a.memberId === m.id)?.amount ?? 0,
+        ),
+      ]),
+    ),
+  );
+  const [instructions, setInstructions] = useState("");
+  const [showInstructions, setShowInstructions] = useState(false);
+  const [parsing, setParsing] = useState(false);
+  const [parseError, setParseError] = useState<string | null>(null);
+  const allocations = members.map((m) => ({
+    memberId: m.id,
+    amount: Number(amounts[m.id] || 0),
+  }));
+  const error = customSplitError(
+    totalAmount,
+    members.map((m) => m.id),
+    allocations,
+  );
+  const apply = (next: SplitAllocation[]) => {
+    setAmounts(
+      Object.fromEntries(
+        members.map((m) => [
+          m.id,
+          String(next.find((a) => a.memberId === m.id)?.amount ?? 0),
+        ]),
+      ),
+    );
+    onChange(next);
+  };
+  const parseInstructions = async () => {
+    if (!tripId || parsing || !instructions.trim()) return;
+    setParsing(true);
+    setParseError(null);
     try {
-      const response = await fetch('/api/ai/parse', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: llmInput, tripId }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to parse input')
-      }
-
-      const { parsed } = await response.json()
-
-      if (parsed.adjustments && parsed.adjustments.length > 0) {
-        const memberMap = new Map(members.map((m) => [m.name.toLowerCase(), m.id]))
-
-        const parsedAdjustments = parsed.adjustments
-          .map((adj: { user_name: string; amount: number }) => {
-            const memberId = memberMap.get(adj.user_name.toLowerCase())
-            if (!memberId) return null
-            return { memberId, amount: adj.amount }
-          })
-          .filter((adj: { memberId: string; amount: number } | null): adj is { memberId: string; amount: number } => adj !== null)
-
-        // Fill in missing members with 0
-        members.forEach((member) => {
-          if (!parsedAdjustments.find((a: { memberId: string; amount: number }) => a.memberId === member.id)) {
-            parsedAdjustments.push({ memberId: member.id, amount: 0 })
-          }
-        })
-
-        setAdjustments(parsedAdjustments)
-        onChange(parsedAdjustments)
-      } else {
-        // If no adjustments, assume equal split and calculate
-        const perPerson = totalAmount / members.length
-        const equalAdjustments = members.map((m) => ({
-          memberId: m.id,
-          amount: perPerson,
-        }))
-        setAdjustments(equalAdjustments)
-        onChange(equalAdjustments)
-      }
-    } catch (error) {
-      console.error('Error parsing LLM input:', error)
+      const response = await fetch("/api/ai/parse", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(await aiRequestHeaders()),
+        },
+        body: JSON.stringify({
+          text: `Split a total of $${totalAmount.toFixed(2)}: ${instructions}`,
+          tripId,
+        }),
+      });
+      if (!response.ok)
+        throw new Error(
+          "Couldn’t interpret the split. Enter the amounts below instead.",
+        );
+      const { parsed } = await response.json();
+      if (!Array.isArray(parsed?.adjustments) || !parsed.adjustments.length)
+        throw new Error(
+          "No custom shares found. Try more specific instructions or enter the amounts below.",
+        );
+      const next = members.map((m) => ({
+        memberId: m.id,
+        amount: Number(
+          parsed.adjustments.find(
+            (a: { user_name?: string }) =>
+              a.user_name?.toLowerCase() === m.name.toLowerCase(),
+          )?.amount ?? 0,
+        ),
+      }));
+      const issue = customSplitError(
+        totalAmount,
+        members.map((m) => m.id),
+        next,
+      );
+      if (issue) throw new Error(`Check the suggested amounts: ${issue}`);
+      apply(next);
+    } catch (err) {
       setParseError(
-        error instanceof Error
-          ? error.message
-          : 'Failed to parse input. Try a different format.'
-      )
+        err instanceof Error ? err.message : "Couldn’t interpret the split.",
+      );
     } finally {
-      setIsParsing(false)
+      setParsing(false);
     }
-  }
-
-  const calculateTotal = () => {
-    return adjustments.reduce((sum, adj) => sum + adj.amount, 0)
-  }
-
-  const allocatedTotal = calculateTotal()
-  const difference = totalAmount - allocatedTotal
-
+  };
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-serif font-bold text-accent">Custom Split</h3>
-        <div className="flex gap-2 border border-accent/20 rounded-full p-1">
-          <button
-            type="button"
-            onClick={() => setMode('manual')}
-            className={`px-3 py-1 text-xs rounded-full transition-colors ${
-              mode === 'manual'
-                ? 'bg-accent text-base'
-                : 'text-accent/60 hover:text-accent'
-            }`}
+    <fieldset className="rounded-2xl border border-[#e1e5dc] bg-[#f8faf5] p-4">
+      <legend className="px-1 text-sm font-semibold">Custom amounts</legend>
+      <p className="muted mb-3 text-xs">
+        Enter what each person owes—not what they paid. Use $0 for anyone who
+        didn’t take part.
+      </p>
+      <button
+        type="button"
+        onClick={() =>
+          apply(
+            equalAllocations(
+              totalAmount,
+              members.map((m) => m.id),
+            ),
+          )
+        }
+        className="mb-3 min-h-11 text-xs font-medium underline underline-offset-4"
+      >
+        Start from an equal split
+      </button>
+      <div className="space-y-3">
+        {members.map((member, i) => (
+          <div
+            key={member.id}
+            className="flex items-center justify-between gap-3"
           >
-            Manual
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode('llm')}
-            className={`px-3 py-1 text-xs rounded-full transition-colors ${
-              mode === 'llm' ? 'bg-accent text-base' : 'text-accent/60 hover:text-accent'
-            }`}
-          >
-            Text Input
-          </button>
-        </div>
-      </div>
-
-      {mode === 'manual' ? (
-        <div className="space-y-3">
-          {members.map((member) => {
-            const adjustment = adjustments.find((a) => a.memberId === member.id)
-            const amount = adjustment?.amount || 0
-
-            return (
-              <div key={member.id} className="flex items-center justify-between">
-                <label className="text-sm text-accent/70 font-medium">{member.name}</label>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-accent/40">$</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={amount}
-                    onChange={(e) => handleAmountChange(member.id, e.target.value)}
-                    className="w-24 px-3 py-2 bg-transparent border-b border-accent/20 text-accent text-sm text-right focus:outline-none focus:border-accent"
-                    placeholder="0.00"
-                  />
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      ) : (
-        <div className="space-y-3">
-          <div>
-            <label className="block text-sm font-medium text-accent/70 mb-2">
-              Enter split instructions (e.g., "Alice pays $20, Bob pays $15, rest split equally")
-            </label>
-            <textarea
-              value={llmInput}
-              onChange={(e) => setLlmInput(e.target.value)}
-              className="w-full px-4 py-3 bg-transparent border-2 border-accent/20 rounded-lg text-accent text-sm focus:outline-none focus:border-accent min-h-[100px]"
-              placeholder="Alice pays $20, Bob pays $15, rest split equally"
-            />
-            {parseError && (
-              <div className="mt-2 text-xs text-red-600">{parseError}</div>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={handleParseLlm}
-            disabled={isParsing || !llmInput.trim()}
-            className="w-full py-2 bg-accent text-base rounded-full font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isParsing ? 'Parsing...' : 'Parse & Apply'}
-          </button>
-          {adjustments.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              className="pt-3 border-t border-accent/10 space-y-2"
+            <label
+              htmlFor={`${groupId}-${i}`}
+              className="min-w-0 break-words text-sm font-medium"
             >
-              <div className="text-xs text-accent/60 mb-2">Parsed amounts:</div>
-              {members.map((member) => {
-                const adjustment = adjustments.find((a) => a.memberId === member.id)
-                const amount = adjustment?.amount || 0
-                return (
-                  <div key={member.id} className="flex justify-between text-sm">
-                    <span className="text-accent/70">{member.name}:</span>
-                    <span className="text-accent">${amount.toFixed(2)}</span>
-                  </div>
-                )
-              })}
-            </motion.div>
+              {member.name}
+            </label>
+            <div className="flex shrink-0 items-center gap-2">
+              <span aria-hidden="true" className="text-sm text-[#5e6b5f]">
+                $
+              </span>
+              <input
+                id={`${groupId}-${i}`}
+                aria-label={`${member.name} share`}
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.01"
+                value={amounts[member.id] ?? "0"}
+                onChange={(e) => {
+                  const next = { ...amounts, [member.id]: e.target.value };
+                  setAmounts(next);
+                  onChange(
+                    members.map((m) => ({
+                      memberId: m.id,
+                      amount: Number(next[m.id] || 0),
+                    })),
+                  );
+                }}
+                className="w-28 min-w-0 text-right tabular-nums"
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div
+        role="status"
+        aria-live="polite"
+        className={`mt-4 border-t border-[#dce2d8] pt-4 text-sm ${error ? "text-[#994630]" : "text-[#355745]"}`}
+      >
+        {error || `All $${totalAmount.toFixed(2)} assigned.`}
+      </div>
+      {tripId && (
+        <div className="mt-4 border-t border-[#dce2d8] pt-3">
+          <button
+            type="button"
+            onClick={() => setShowInstructions(!showInstructions)}
+            aria-expanded={showInstructions}
+            className="min-h-11 text-xs font-medium underline underline-offset-4"
+          >
+            Describe the split instead
+          </button>
+          {showInstructions && (
+            <div className="space-y-3">
+              <label
+                htmlFor={`${groupId}-instructions`}
+                className="block text-xs text-[#5e6b5f]"
+              >
+                For example: Alex owes $20, split the rest equally.
+              </label>
+              <textarea
+                id={`${groupId}-instructions`}
+                value={instructions}
+                onChange={(e) => setInstructions(e.target.value)}
+                className="min-h-24 w-full rounded-xl border border-[#dce2d8] bg-white p-3"
+              />
+              <button
+                type="button"
+                onClick={parseInstructions}
+                disabled={parsing || !instructions.trim()}
+                className="btn-secondary w-full"
+              >
+                {parsing ? "Working out shares…" : "Apply suggested shares"}
+              </button>
+              {parseError && (
+                <p role="alert" className="text-xs text-red-800">
+                  {parseError}
+                </p>
+              )}
+            </div>
           )}
         </div>
       )}
-
-      <div className="pt-4 border-t border-accent/10">
-        <div className="flex justify-between items-center text-sm">
-          <span className="text-accent/70">Allocated Total:</span>
-          <span className="font-medium text-accent">${allocatedTotal.toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between items-center text-sm mt-1">
-          <span className="text-accent/70">Transaction Total:</span>
-          <span className="font-medium text-accent">${totalAmount.toFixed(2)}</span>
-        </div>
-        {Math.abs(difference) > 0.01 && (
-          <div
-            className={`flex justify-between items-center text-sm mt-1 ${
-              difference > 0 ? 'text-yellow-600' : 'text-red-600'
-            }`}
-          >
-            <span>Difference:</span>
-            <span className="font-medium">
-              {difference > 0 ? '+' : ''}${difference.toFixed(2)}
-            </span>
-          </div>
-        )}
-      </div>
-    </div>
-  )
+    </fieldset>
+  );
 }
