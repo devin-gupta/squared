@@ -182,6 +182,48 @@ are not automatically reinterpreted as another currency.
 
 The `vercel.json` file is already configured with proper PWA headers and caching strategies.
 
+### Google sign-in
+
+Google sign-in uses the existing browser Supabase session. The client page at
+`/auth/callback` finishes the SDK's implicit OAuth flow; it is not a server route
+that exchanges a PKCE code into cookies. Keep the shared auth client and existing
+email-link flow unchanged unless migrating the entire application to cookie auth.
+No database migration, SMTP service, or new app environment variables are needed.
+
+Configure a Web application OAuth client in Google Cloud, with:
+
+- Authorized JavaScript origin: `https://squared-omega.vercel.app`
+- Authorized redirect URI: `https://omuavzmycthzgwrxuzsc.supabase.co/auth/v1/callback`
+- Basic identity scopes only (email and profile). Squared does not need offline
+  access to Google APIs. Make the consent app available to your intended audience;
+  if it is in Testing, check its test-user restrictions.
+
+Store the Google client ID and secret in Supabase Authentication → Sign In / Providers
+→ Google, and enable that provider. Never commit the client secret or put it in a
+`NEXT_PUBLIC_` environment variable.
+
+In Supabase Authentication → URL Configuration:
+
+- Site URL: `https://squared-omega.vercel.app`
+- Add redirect URL `https://squared-omega.vercel.app/auth/callback`
+- Add redirect URL `https://squared-omega.vercel.app/auth/callback?invite=*`
+  to preserve invite queries across browsers. Keep existing email-link URLs.
+- For local development, allow the corresponding `http://localhost:3000` callback
+  URLs and add that origin to the Google client. Allow only trusted preview hosts.
+
+The query wildcard is restricted to the callback on the production host. See
+[Supabase redirect matching](https://supabase.com/docs/guides/auth/redirect-urls)
+and [Google provider setup](https://supabase.com/docs/guides/auth/social-login/auth-google).
+An invite is also saved locally before leaving Squared. Callback failures offer a
+retry without sending email; arbitrary `next` destinations are never followed.
+
+To smoke-test, open an invite, choose **Continue with Google**, finish consent,
+and confirm the invited trip opens. Reload to confirm the session persists. Also
+cancel Google sign-in and verify the retry keeps the invite. Existing users should
+choose Google with the same verified email they previously used: Supabase
+[automatically links identities with matching verified emails](https://supabase.com/docs/guides/auth/auth-identity-linking).
+Different Google email addresses create different accounts.
+
 ## Troubleshooting
 
 ### Migration Errors

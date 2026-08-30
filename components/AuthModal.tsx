@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import Modal from "./Modal";
 import Icon from "./Icon";
 import { rememberedEmail } from "@/lib/auth/preferences";
+import GoogleSignInButton from "./GoogleSignInButton";
 
 export default function AuthModal({
   isOpen,
@@ -21,6 +22,7 @@ export default function AuthModal({
   const { signIn } = useAuth();
   const [email, setEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [openingGoogle, setOpeningGoogle] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const emailInput = useRef<HTMLInputElement>(null);
@@ -32,7 +34,7 @@ export default function AuthModal({
   }, [isOpen, success]);
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim() || submitting) return;
+    if (!email.trim() || submitting || openingGoogle) return;
     setSubmitting(true);
     setError(null);
     try {
@@ -40,11 +42,13 @@ export default function AuthModal({
       setSuccess(true);
     } catch (err) {
       setError(
-        isAuthRetryableFetchError(err)
-          ? "We couldn’t reach the sign-in service. Check your connection and try again in a moment."
-          : err instanceof Error
-            ? err.message
-            : "Couldn’t send your link. Please try again.",
+        err instanceof Error && /email rate limit exceeded/i.test(err.message)
+          ? "Email sign-in is temporarily rate-limited. Continue with Google above, or try email later."
+          : isAuthRetryableFetchError(err)
+            ? "We couldn’t reach the sign-in service. Check your connection and try again in a moment."
+            : err instanceof Error
+              ? err.message
+              : "Couldn’t send your link. Please try again.",
       );
     } finally {
       setSubmitting(false);
@@ -65,8 +69,8 @@ export default function AuthModal({
         success
           ? "Your sign-in link is on its way."
           : inviteCode
-            ? "Your invite is saved. One email link and you’re in."
-            : "One email link. We’ll remember you on this browser."
+            ? "Your invite is saved. Choose how to sign in."
+            : "Sign in with Google or an email link."
       }
     >
       {success ? (
@@ -109,6 +113,16 @@ export default function AuthModal({
               {notice}
             </p>
           )}
+          <GoogleSignInButton
+            inviteCode={inviteCode}
+            disabled={submitting}
+            onBusyChange={setOpeningGoogle}
+          />
+          <div className="flex items-center gap-3 text-xs text-[#5e6b5f]">
+            <span className="h-px flex-1 bg-[#e1e5dc]" />
+            <span>or use email</span>
+            <span className="h-px flex-1 bg-[#e1e5dc]" />
+          </div>
           <div>
             <label
               htmlFor="sign-in-email"
@@ -130,7 +144,7 @@ export default function AuthModal({
               required
               autoFocus
               className="w-full"
-              disabled={submitting}
+              disabled={submitting || openingGoogle}
             />
           </div>
           {error && (
@@ -144,7 +158,7 @@ export default function AuthModal({
           <button
             type="submit"
             className="btn-primary w-full"
-            disabled={submitting || !email.trim()}
+            disabled={submitting || openingGoogle || !email.trim()}
           >
             {submitting ? "Sending your link…" : "Send me a magic link"}
             <Icon name="arrow" width="17" />

@@ -168,7 +168,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             <Icon name="arrow" width="17" />
           </button>
           <p className="muted mt-3 text-xs">
-            One email link. No password to remember.
+            Google or an email link. No password to remember.
           </p>
           {process.env.NODE_ENV === "development" && (
             <Link
