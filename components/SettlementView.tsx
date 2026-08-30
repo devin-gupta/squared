@@ -5,7 +5,6 @@ import SettlementSummary from "./SettlementSummary";
 import { SettlementMember } from "@/lib/settlement/transfers";
 import { supabase } from "@/lib/supabase/client";
 import SpendingStats from "./SpendingStats";
-import CategoryPieChart from "./CategoryPieChart";
 
 interface SettlementViewProps {
   tripId: string | null;
@@ -30,9 +29,6 @@ export default function SettlementView({
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [categoryData, setCategoryData] = useState<
-    Array<{ category: string; amount: number; percentage: number }>
-  >([]);
 
   useEffect(() => {
     if (!tripId) {
@@ -73,12 +69,10 @@ export default function SettlementView({
           headers["Authorization"] = `Bearer ${authToken}`;
         }
 
-        const [settlementResponse, statsResponse] = await Promise.all([
-          fetch(`/api/settlement?tripId=${tripId}`, { headers }),
-          fetch(
-            `/api/trips/${tripId}/statistics${currentUserName ? `?userName=${encodeURIComponent(currentUserName)}` : ""}`,
-          ),
-        ]);
+        const settlementResponse = await fetch(
+          `/api/settlement?tripId=${tripId}`,
+          { headers },
+        );
 
         if (!settlementResponse.ok) {
           throw new Error("Failed to compute settlement");
@@ -86,14 +80,6 @@ export default function SettlementView({
 
         const { settlements } = await settlementResponse.json();
         setSettlements(settlements);
-
-        // Load category data for chart
-        if (statsResponse.ok) {
-          const { statistics } = await statsResponse.json();
-          if (statistics?.categoryBreakdown) {
-            setCategoryData(statistics.categoryBreakdown);
-          }
-        }
       } catch (error) {
         console.error("Error computing settlement:", error);
         setError("Check your connection and try opening this page again.");
@@ -114,13 +100,10 @@ export default function SettlementView({
         loading={loading}
         error={error}
         hasTrip={!!tripId}
+        statistics={
+          tripId ? <SpendingStats key={tripId} tripId={tripId} /> : null
+        }
       />
-      {!loading && !error && tripId && settlements.length > 0 && (
-        <div className="mt-8 grid gap-6 xl:grid-cols-2">
-          <SpendingStats tripId={tripId} currentUserName={currentUserName} />
-          {categoryData.length > 0 && <CategoryPieChart data={categoryData} />}
-        </div>
-      )}
     </>
   );
 }

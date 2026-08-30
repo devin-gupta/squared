@@ -4,6 +4,8 @@ import { useState } from "react";
 import Modal from "./Modal";
 import DeleteExpenseAction from "./DeleteExpenseAction";
 import CustomSplitEditor from "./CustomSplitEditor";
+import ReceiptLineItemEditor from "./ReceiptLineItemEditor";
+import CurrencySelector from "./CurrencySelector";
 import { customSplitError } from "@/lib/transactions/splits";
 import { TransactionParsed } from "@/types/transaction";
 
@@ -31,6 +33,8 @@ export default function ManualTransactionForm({
     initialData?.total_amount?.toString() || "",
   );
   const [payerName, setPayerName] = useState(initialData?.payer_name || "");
+  const [currency, setCurrency] = useState(initialData?.currency || "USD");
+  const [lineItems, setLineItems] = useState(initialData?.line_items || []);
   const [splitType, setSplitType] = useState<"equal" | "custom">(
     initialData?.split_type || "equal",
   );
@@ -43,9 +47,20 @@ export default function ManualTransactionForm({
       ),
     })),
   );
-  const splitError =
-    splitType === "custom"
-      ? customSplitError(Number(totalAmount), memberNames, adjustments)
+  const splitError = lineItems.length
+    ? Math.abs(
+        lineItems.reduce((sum, item) => sum + item.amount, 0) -
+          Number(totalAmount),
+      ) > 0.005
+      ? "Receipt items must add up to the expense amount."
+      : null
+    : splitType === "custom"
+      ? customSplitError(
+          Number(totalAmount),
+          memberNames,
+          adjustments,
+          currency,
+        )
       : null;
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -64,10 +79,12 @@ export default function ManualTransactionForm({
     const parsed: TransactionParsed = {
       description,
       total_amount: parseFloat(totalAmount) || 0,
+      currency,
+      line_items: lineItems.length ? lineItems : undefined,
       payer_name: payerName || undefined,
       split_type: splitType,
       adjustments:
-        splitType === "custom"
+        splitType === "custom" && !lineItems.length
           ? adjustments.map((a) => ({
               user_name: a.memberId,
               amount: a.amount,
@@ -125,7 +142,7 @@ export default function ManualTransactionForm({
             htmlFor="expense-amount"
             className="block text-sm font-medium text-accent/70 mb-2"
           >
-            Amount ($)
+            Amount ({currency === "USD" ? "$" : currency})
           </label>
           <input
             id="expense-amount"
@@ -139,6 +156,14 @@ export default function ManualTransactionForm({
             required
           />
         </div>
+
+        {tripId && (
+          <CurrencySelector
+            currency={currency}
+            amount={Number(totalAmount)}
+            onChange={setCurrency}
+          />
+        )}
 
         <div>
           <label
@@ -194,14 +219,25 @@ export default function ManualTransactionForm({
           </div>
         </div>
 
-        {splitType === "custom" && (
-          <CustomSplitEditor
+        {lineItems.length ? (
+          <ReceiptLineItemEditor
+            lineItems={lineItems}
             members={memberNames.map((name) => ({ id: name, name }))}
             totalAmount={Number(totalAmount) || 0}
-            tripId={tripId}
-            existingAdjustments={adjustments}
-            onChange={setAdjustments}
+            currency={currency}
+            onChange={setLineItems}
           />
+        ) : (
+          splitType === "custom" && (
+            <CustomSplitEditor
+              members={memberNames.map((name) => ({ id: name, name }))}
+              totalAmount={Number(totalAmount) || 0}
+              currency={currency}
+              tripId={tripId}
+              existingAdjustments={adjustments}
+              onChange={setAdjustments}
+            />
+          )
         )}
 
         {error && (

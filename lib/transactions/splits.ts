@@ -8,6 +8,7 @@ export function customSplitError(
   total: number,
   memberIds: string[],
   allocations: SplitAllocation[],
+  currency = "USD",
 ): string | null {
   if (!Number.isFinite(total) || total <= 0)
     return "Enter an expense amount first.";
@@ -33,9 +34,11 @@ export function customSplitError(
       (sum, allocation) => sum + Math.round(allocation.amount * 100),
       0,
     );
-  if (remaining > 0) return `$${(remaining / 100).toFixed(2)} left to assign.`;
+  const prefix = currency === "USD" ? "$" : `${currency} `;
+  if (remaining > 0)
+    return `${prefix}${(remaining / 100).toFixed(2)} left to assign.`;
   if (remaining < 0)
-    return `$${(-remaining / 100).toFixed(2)} over the expense total.`;
+    return `${prefix}${(-remaining / 100).toFixed(2)} over the expense total.`;
   return null;
 }
 

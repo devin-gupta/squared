@@ -252,7 +252,7 @@ function HomeContent() {
       return {
         status: "saved",
         description: parsed.description,
-        amount: parsed.total_amount,
+        amount: result.totalAmount,
       };
     } catch (error) {
       throw error instanceof Error
@@ -331,13 +331,26 @@ function HomeContent() {
   };
 
   const handleRemoveMember = async (memberId: string) => {
-    if (!tripId) return;
-    try {
-      await removeMember(tripId, memberId);
-      await loadMembers(tripId);
-    } catch (error) {
-      console.error("Error removing member:", error);
-      alert("Failed to remove member");
+    if (!tripId) throw new Error("Choose a trip before removing a member.");
+    const leaving =
+      members.find((member) => member.id === memberId)?.user_id === user?.id;
+    await removeMember(tripId, memberId);
+    // The server confirmed deletion. Update locally so a failed follow-up read
+    // cannot report an already-completed removal as a failure.
+    setMembers((current) => current.filter((member) => member.id !== memberId));
+    setMemberNames(
+      members
+        .filter((member) => member.id !== memberId)
+        .map((member) => member.display_name),
+    );
+    setDashboardRevision((value) => value + 1);
+    if (leaving) {
+      setShowMemberModal(false);
+      setTripId(null);
+      setTrip(null);
+      writePreference("tripId", null);
+      if (user) writePreference(`squared:lastTrip:${user.id}`, null);
+      setLoadAttempt((value) => value + 1);
     }
   };
 
@@ -486,7 +499,11 @@ function HomeContent() {
         throw new Error("Describe the expense or attach a receipt first.");
       setPendingParsed(parsed);
       setPendingReceiptUrl(result.receiptUrl);
-      if (!(parsed.total_amount > 0) || !parsed.description) {
+      if (
+        !(parsed.total_amount > 0) ||
+        !parsed.description ||
+        (parsed.currency && parsed.currency !== "USD")
+      ) {
         setShowManualForm(true);
         return { status: "review" };
       }
@@ -668,10 +685,20 @@ function HomeContent() {
           />
 
           <MemberListModal
+            key={trip.id}
             isOpen={showMemberModal}
             onClose={() => setShowMemberModal(false)}
             members={members}
             onRemoveMember={handleRemoveMember}
+            currentMemberId={
+              members.find((member) => member.user_id === user?.id)?.id
+            }
+            creatorName={trip.created_by}
+            canRemove={members.some(
+              (member) =>
+                member.user_id === user?.id &&
+                member.display_name === trip.created_by,
+            )}
           />
 
           <DeleteTripModal

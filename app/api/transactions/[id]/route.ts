@@ -78,7 +78,7 @@ export async function PUT(
     // Get current transaction to check split_type
     const { data: currentTransaction, error: fetchError } = await supabase
       .from("transactions")
-      .select("split_type")
+      .select("*")
       .eq("id", transactionId)
       .maybeSingle();
 
@@ -101,6 +101,19 @@ export async function PUT(
 
     if (description !== undefined) updateData.description = description;
     if (totalAmount !== undefined) updateData.total_amount = totalAmount;
+    // Editing happens in USD. Never retain an original-currency reference that
+    // no longer matches the ledger total; other edits preserve the locked rate.
+    const original = currentTransaction as {
+      total_amount?: number;
+      currency_conversion?: unknown;
+    };
+    if (
+      original.currency_conversion &&
+      totalAmount !== undefined &&
+      Number(totalAmount) !== Number(original.total_amount)
+    ) {
+      updateData.currency_conversion = null;
+    }
     if (payerId !== undefined) updateData.payer_id = payerId;
     if (splitType !== undefined) updateData.split_type = splitType;
     if (lineItems !== undefined) updateData.line_items = lineItems;

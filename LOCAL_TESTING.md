@@ -66,6 +66,26 @@ Run `npm run test:auth` for regression checks covering invite validation/expiry,
 
 A real successful email delivery/sign-in still needs user testing. Browser storage is per origin/profile: Safari, an in-app browser, and an installed home-screen app may not share sign-in state. Private browsing or clearing website data can require login again. Production Supabase responses now use NetworkOnly in the service worker so authentication and account data cannot fall back to the previous response cache.
 
+## Statistics regression
+
+Statistics and the category chart share one authenticated request. The API verifies
+the signed-in account and its trip membership, keeps database row-level security,
+and derives “You Paid” from that account's member ID. Only finalized expenses count.
+Failed requests show an error with retry; an empty trip legitimately shows zeros.
+Statistics remain visible even when there are no outstanding settlements.
+On desktop, the compact Statistics card aligns with the top of the payment panel
+in the right column. On mobile, it follows payments and precedes Venmo help.
+Loading, error, and loaded states share the same card container.
+
+`node --test tests/statistics.test.cjs` uses the real Supabase SDK with a synthetic
+transport to check totals, payer identity, trip/status filtering, concurrent account
+isolation, empty trips, expired/missing authentication, and database failures.
+Isolated WebKit checks against the production build cover authenticated requests,
+displayed values, a shared chart request, loading/error/retry, responsive layout at
+320/390/430/820/1280/1440px, placement with and without outstanding payments,
+and accessibility. These checks use mocked sessions and API
+responses; they do not read or change real expenses.
+
 ## Expense progress and compact mobile header
 
 On mobile, tap the trip name to open the trip picker, or tap the two figures to open Expenses and Settle up. The figures share the dashboard transaction data and show a dash while loading or on an error. Desktop keeps the three summary cards.
@@ -77,3 +97,27 @@ Isolated WebKit checks cover mobile header values and accessibility at 320/390/4
 ## Trip deletion regression
 
 `npm run test:trip-delete` exercises the route with the real Supabase SDK and a fully mocked transport. It verifies that authentication is forwarded to every query, each request has its own client, non-creators and invalid sessions cannot delete, read errors remain errors, and filtered or failed deletes cannot report success. Deletion remains a single database statement with cascading cleanup; the app does not delete children in separate requests. The mobile confirmation shows API errors inline and retains the trip on failure. Isolated WebKit checks cover cancel, pending state, error/retry, confirmed success, and accessibility at 320/390/430px without deleting real data.
+
+## Member removal and currency entry
+
+Member removal now verifies the signed-in account, permits the creator to remove
+another member or a non-creator to leave, protects the creator, and confirms a row
+was actually deleted. Existing payer links, explicit shares, equal shares, and
+receipt allocations block removal with a useful explanation and a link to expenses.
+No expense history is deleted or reassigned. These checks do not implement archival
+or access-only removal, and no live member was removed during development.
+
+`npm test` covers removal authorization, paginated expense checks, foreign-key and
+read failures, and filtered deletes. Currency tests cover exact decimal conversion,
+rounding of custom shares and receipt discounts, stale/invalid rates, and no writes
+on rate failure. Foreign expenses use a single authenticated database transaction
+so a failed allocation does not leave an incomplete expense. An isolated PostgreSQL
+check applied migration 003 twice, verified unchanged USD history, and tested
+rollback after an allocation failure plus rejection of nonmembers and invalid totals.
+
+Isolated WebKit checks cover member confirmation/cancel/busy/error/retry; INR manual
+entry and shares; USD previews; preserved drafts when rates fail; saved currency
+references; foreign AI receipt review; the USD editor; CSV export; and mobile layout
+and accessibility. All accounts and database requests in those checks are mocked.
+The public rate endpoint was also checked with a real INR/USD lookup, without any
+expense data. Production needs migration 003 from SETUP.md before foreign saves.

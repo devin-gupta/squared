@@ -25,13 +25,13 @@ export default function StatCard({
 
   return (
     <motion.div
-      className="rounded-xl bg-[#f4f6ef] p-4"
+      className="min-w-0 rounded-xl bg-[#f4f6ef] p-3"
       transition={{ duration: 0.15 }}
     >
-      <div className="text-xs font-sans text-accent/70 uppercase tracking-wide mb-2 font-medium">
+      <div className="text-[11px] font-sans text-accent/70 uppercase tracking-wide mb-2 font-medium">
         {label}
       </div>
-      <div className="text-2xl font-semibold tabular-nums text-accent">
+      <div className="text-lg font-semibold tabular-nums text-accent [overflow-wrap:anywhere]">
         {formatValue(value)}
       </div>
     </motion.div>

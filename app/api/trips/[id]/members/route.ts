@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase/client";
+import { createClient } from "@supabase/supabase-js";
+import { MemberRemovalError, removeTripMember } from "@/lib/trips/remove";
 
 export const dynamic = "force-dynamic";
 
@@ -67,34 +69,59 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const resolvedParams = await Promise.resolve(params);
-    const tripId = resolvedParams.id;
-    const memberId = request.nextUrl.searchParams.get("memberId");
-
-    if (!memberId) {
+    const token = request.headers
+      .get("authorization")
+      ?.match(/^Bearer (\S+)$/i)?.[1];
+    if (!token)
       return NextResponse.json(
-        { error: "memberId is required" },
+        { error: "Sign in before removing a member." },
+        { status: 401 },
+      );
+    const { id: tripId } = await params;
+    const memberId = request.nextUrl.searchParams.get("memberId");
+    const uuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuid.test(tripId) || !memberId || !uuid.test(memberId)) {
+      return NextResponse.json(
+        { error: "A valid trip and member are required." },
         { status: 400 },
       );
     }
 
-    const { error } = await supabase
-      .from("trip_members")
-      .delete()
-      .eq("id", memberId)
-      .eq("trip_id", tripId);
-
-    if (error) {
-      throw new Error(`Failed to remove member: ${error.message}`);
-    }
+    const client = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+      {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+          detectSessionInUrl: false,
+        },
+        global: { headers: { Authorization: `Bearer ${token}` } },
+      },
+    );
+    const {
+      data: { user },
+      error: authError,
+    } = await client.auth.getUser(token);
+    if (authError || !user)
+      return NextResponse.json(
+        { error: "Your sign-in expired. Please sign in again." },
+        { status: 401 },
+      );
+    await removeTripMember(client, tripId, memberId, user.id);
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error removing member:", error);
+    if (error instanceof MemberRemovalError)
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.status },
+      );
+    console.error("Unexpected member removal failure");
     return NextResponse.json(
       {
-        error:
-          error instanceof Error ? error.message : "Failed to remove member",
+        error: "Couldn’t remove this member. Please try again.",
       },
       { status: 500 },
     );

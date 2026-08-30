@@ -7,6 +7,7 @@ import { Transaction, LineItem } from "@/types/transaction";
 import ReceiptLineItemEditor from "./ReceiptLineItemEditor";
 import CustomSplitEditor from "./CustomSplitEditor";
 import { customSplitError } from "@/lib/transactions/splits";
+import CurrencyReference from "./CurrencyReference";
 
 interface TransactionEditFormProps {
   transaction: Transaction & {
@@ -125,6 +126,15 @@ export default function TransactionEditForm({
       description="Keep the details in sync with your trip."
     >
       <form onSubmit={handleSubmit} className="space-y-5">
+        {transaction.currency_conversion && (
+          <div className="space-y-2">
+            <CurrencyReference conversion={transaction.currency_conversion} />
+            <p className="muted text-xs">
+              Amounts and shares below are in USD. Changing the total replaces
+              the conversion reference with your edited USD amount.
+            </p>
+          </div>
+        )}
         <div>
           <label
             htmlFor="edit-description"

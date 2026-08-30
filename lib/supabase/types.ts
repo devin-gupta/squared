@@ -58,6 +58,7 @@ export interface Database {
           trip_id: string
           description: string
           total_amount: number
+          currency_conversion: Json | null
           payer_id: string
           split_type: 'equal' | 'custom'
           receipt_url: string | null
@@ -71,6 +72,7 @@ export interface Database {
           trip_id: string
           description: string
           total_amount: number
+          currency_conversion?: Json | null
           payer_id: string
           split_type?: 'equal' | 'custom'
           receipt_url?: string | null
@@ -84,6 +86,7 @@ export interface Database {
           trip_id?: string
           description?: string
           total_amount?: number
+          currency_conversion?: Json | null
           payer_id?: string
           split_type?: 'equal' | 'custom'
           receipt_url?: string | null

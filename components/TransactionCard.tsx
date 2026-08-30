@@ -4,6 +4,8 @@ import { useId, useState } from "react";
 import { Transaction } from "@/types/transaction";
 import Icon from "./Icon";
 import type { TransactionWithShares } from "@/lib/statistics/personal";
+import { currencyAmount } from "@/lib/currency/convert";
+import CurrencyReference from "./CurrencyReference";
 
 export type DisplayTransaction = TransactionWithShares & {
   payer?: { display_name: string };
@@ -60,6 +62,15 @@ export default function TransactionCard({
               ? "Split equally"
               : "Custom split"}
           </span>
+          {transaction.currency_conversion && (
+            <span className="mt-1 block text-xs text-[#5e6b5f]">
+              Originally{" "}
+              {currencyAmount(
+                transaction.currency_conversion.original_amount,
+                transaction.currency_conversion.original_currency,
+              )}
+            </span>
+          )}
         </span>
         <span className="hidden text-xs text-[#5e6b5f] md:block">
           {new Date(transaction.created_at).toLocaleDateString("en-US", {
@@ -92,6 +103,9 @@ export default function TransactionCard({
               {transaction.status}
             </span>
           </div>
+          {transaction.currency_conversion && (
+            <CurrencyReference conversion={transaction.currency_conversion} />
+          )}
           {transaction.line_items?.map((item, i) => (
             <div key={i} className="mt-2 flex justify-between gap-3">
               <span>{item.description}</span>

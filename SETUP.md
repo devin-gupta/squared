@@ -148,6 +148,28 @@ The existing `squared` Vercel project is connected to `devin-gupta/squared`, wit
 
 Use Node.js 24 and `npm ci` to reproduce CI. Run `npm test` for regressions or `npm run check` for tests plus the production build. Supabase schema migrations require a separate reviewed change; deployment does not execute them.
 
+### Foreign-currency expenses
+
+Before deploying foreign-currency entry to an existing database, back up the database
+and apply **only** [003_currency_conversion.sql](./supabase/migrations/003_currency_conversion.sql)
+in the Supabase SQL editor. It requires the existing initial and auth schemas. The
+migration adds a nullable conversion reference and an authenticated function that
+saves a converted expense and its custom shares in one transaction. It is repeatable
+and does not recalculate or modify existing expenses. No service-role key is needed
+in the app. This migration is not applied by the build or Vercel deployment.
+
+New foreign-currency expenses use [Frankfurter's daily reference rates](https://frankfurter.dev/)
+and save totals, receipt items, and custom shares in USD. The original currency,
+amount, rate, rate date, and provider remain available in the ledger/editor and CSV.
+Rates are checked at save time, then locked; existing expenses are not revalued.
+These are reference rates, not a card statement's final amount or fees. Only the
+currency pair is sent to the rate provider, never expense descriptions or amounts.
+
+Without the migration, foreign-currency saves show a setup error without saving an
+expense. Existing USD entry continues to work. Failed or stale rate requests never
+fall back to treating foreign amounts as USD. Historical expenses entered as dollars
+are not automatically reinterpreted as another currency.
+
 ### Connecting a new Vercel project
 
 1. Push your code to GitHub/GitLab/Bitbucket

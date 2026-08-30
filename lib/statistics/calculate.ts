@@ -1,4 +1,4 @@
-import { supabase } from '../supabase/client'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { Transaction } from '@/types/transaction'
 
 export interface TripStatistics {
@@ -10,11 +10,12 @@ export interface TripStatistics {
 }
 
 export async function calculateStatistics(
+  client: SupabaseClient,
   tripId: string,
   currentUserId?: string
 ): Promise<TripStatistics> {
   // Fetch all finalized transactions
-  const { data: transactions, error } = await supabase
+  const { data: transactions, error } = await client
     .from('transactions')
     .select(`
       *,

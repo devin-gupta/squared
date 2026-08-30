@@ -91,6 +91,7 @@ export default function CategoryPieChart({ data }: CategoryPieChartProps) {
               <Cell
                 key={`cell-${index}`}
                 fill={COLORS[index % COLORS.length]}
+                aria-label={`${entry.name}: ${formatCurrency(entry.value)}, ${entry.percentage.toFixed(1)}%`}
               />
             ))}
           </Pie>

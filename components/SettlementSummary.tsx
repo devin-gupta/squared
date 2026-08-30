@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import Icon from "./Icon";
 import Modal from "./Modal";
@@ -29,6 +29,7 @@ export default function SettlementSummary({
   currentMember,
   tripId,
   tripName,
+  statistics,
 }: {
   settlements: Settlement[];
   loading?: boolean;
@@ -38,6 +39,7 @@ export default function SettlementSummary({
   currentMember?: SettlementMember | null;
   tripId?: string | null;
   tripName?: string;
+  statistics?: ReactNode;
 }) {
   const storageKey = `squared:venmo:${basePath || "app"}:${tripId || "trip"}`;
   const [usernames, setUsernames] = useState<Record<string, string>>({});
@@ -53,6 +55,9 @@ export default function SettlementSummary({
     ? settlementTotals(settlements, currentMember)
     : null;
   const note = tripName ? `Squared: ${tripName}` : "Squared trip settlement";
+  const showPaymentDetails =
+    !loading && !error && hasTrip && settlements.length > 0;
+  const hasSidebar = !!statistics || showPaymentDetails;
   useEffect(() => {
     setUsernames({});
     setLastAction(null);
@@ -279,132 +284,149 @@ export default function SettlementSummary({
           </div>
         </div>
       )}
-      {loading ? (
-        <div role="status" className="empty-state muted">
-          Working out the balances…
-        </div>
-      ) : error ? (
-        <div role="alert" className="empty-state">
-          <h2 className="font-semibold">We couldn’t load your balances.</h2>
-          <p className="muted">{error}</p>
-          <Link href={basePath || "/"} className="btn-secondary">
-            Back to overview
-          </Link>
-        </div>
-      ) : !hasTrip ? (
-        <div className="empty-state">
-          <span className="icon-tile">
-            <Icon name="travel" />
-          </span>
-          <h2 className="font-serif text-2xl">First, a trip to share.</h2>
-          <p className="muted">Choose or create a trip to see its balances.</p>
-          <Link className="btn-primary" href={basePath || "/"}>
-            Go to overview
-          </Link>
-        </div>
-      ) : !settlements.length ? (
-        <div className="empty-state">
-          <span className="icon-tile">
-            <Icon name="check" />
-          </span>
-          <h2 className="font-serif text-3xl">All square.</h2>
-          <p className="muted">No payments needed right now.</p>
-          <Link className="btn-secondary mt-2" href={basePath || "/"}>
-            Back to the trip
-          </Link>
-        </div>
-      ) : (
-        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_290px]">
-          <section className="panel overflow-hidden">
-            <div className="border-b border-[#e1e5dc] p-5">
-              <h2 className="font-semibold">Suggested payments</h2>
-              <p className="muted mt-1 text-xs">
-                Tap your transfers to pay or request in Venmo. Other members’
-                transfers are shown for context.
-              </p>
+      <div
+        className={
+          hasSidebar
+            ? "grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_320px]"
+            : ""
+        }
+      >
+        <div className="min-w-0">
+          {loading ? (
+            <div role="status" className="empty-state muted">
+              Working out the balances…
             </div>
-            {settlements.map((transfer, index) => {
-              const action = actionFor(transfer);
-              const key = `${transfer.fromId || transfer.from}-${transfer.toId || transfer.to}-${index}`;
-              if (!action)
-                return (
-                  <div key={key} className={rowClass}>
-                    {content(transfer, null)}
-                  </div>
+          ) : error ? (
+            <div role="alert" className="empty-state">
+              <h2 className="font-semibold">We couldn’t load your balances.</h2>
+              <p className="muted">{error}</p>
+              <Link href={basePath || "/"} className="btn-secondary">
+                Back to overview
+              </Link>
+            </div>
+          ) : !hasTrip ? (
+            <div className="empty-state">
+              <span className="icon-tile">
+                <Icon name="travel" />
+              </span>
+              <h2 className="font-serif text-2xl">First, a trip to share.</h2>
+              <p className="muted">
+                Choose or create a trip to see its balances.
+              </p>
+              <Link className="btn-primary" href={basePath || "/"}>
+                Go to overview
+              </Link>
+            </div>
+          ) : !settlements.length ? (
+            <div className="empty-state">
+              <span className="icon-tile">
+                <Icon name="check" />
+              </span>
+              <h2 className="font-serif text-3xl">All square.</h2>
+              <p className="muted">No payments needed right now.</p>
+              <Link className="btn-secondary mt-2" href={basePath || "/"}>
+                Back to the trip
+              </Link>
+            </div>
+          ) : (
+            <section className="panel overflow-hidden">
+              <div className="border-b border-[#e1e5dc] p-5">
+                <h2 className="font-semibold">Suggested payments</h2>
+                <p className="muted mt-1 text-xs">
+                  Tap your transfers to pay or request in Venmo. Other members’
+                  transfers are shown for context.
+                </p>
+              </div>
+              {settlements.map((transfer, index) => {
+                const action = actionFor(transfer);
+                const key = `${transfer.fromId || transfer.from}-${transfer.toId || transfer.to}-${index}`;
+                if (!action)
+                  return (
+                    <div key={key} className={rowClass}>
+                      {content(transfer, null)}
+                    </div>
+                  );
+                if (!usernames[action.person.id])
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => editUsername(action.person)}
+                      className={`${rowClass} transition-colors hover:bg-[#f5f8ef]`}
+                    >
+                      {content(transfer, action)}
+                    </button>
+                  );
+                const links = venmoLinks(
+                  usernames[action.person.id],
+                  action.direction,
+                  action.amount,
+                  note,
                 );
-              if (!usernames[action.person.id])
                 return (
-                  <button
+                  <a
                     key={key}
-                    onClick={() => editUsername(action.person)}
+                    href={links.app}
+                    onClick={() => {
+                      setLastAction(action);
+                      setCopied(false);
+                    }}
                     className={`${rowClass} transition-colors hover:bg-[#f5f8ef]`}
                   >
                     {content(transfer, action)}
-                  </button>
+                  </a>
                 );
-              const links = venmoLinks(
-                usernames[action.person.id],
-                action.direction,
-                action.amount,
-                note,
-              );
-              return (
-                <a
-                  key={key}
-                  href={links.app}
-                  onClick={() => {
-                    setLastAction(action);
-                    setCopied(false);
-                  }}
-                  className={`${rowClass} transition-colors hover:bg-[#f5f8ef]`}
-                >
-                  {content(transfer, action)}
-                </a>
-              );
-            })}
-          </section>
-          <aside className="space-y-5">
-            <section className="panel p-5">
-              <h2 className="font-semibold">Venmo usernames</h2>
-              <p className="muted mt-2 text-xs">
-                Saved only on this device. Confirm each username with your
-                friend before paying.
-              </p>
-              <div className="mt-3 divide-y divide-[#edf0e8]">
-                {people.map((person) => (
-                  <button
-                    key={person.id}
-                    onClick={() => editUsername(person)}
-                    className="flex min-h-14 w-full items-center justify-between gap-3 py-3 text-left"
-                  >
-                    <span className="min-w-0 text-sm">
-                      <span className="block">{person.name}</span>
-                      <span className="block break-all text-xs text-[#5e6b5f]">
-                        {usernames[person.id]
-                          ? `@${usernames[person.id]}`
-                          : "Not added yet"}
-                      </span>
-                    </span>
-                    <span className="text-xs underline">
-                      {usernames[person.id] ? "Edit" : "Add"}
-                    </span>
-                  </button>
-                ))}
-              </div>
+              })}
             </section>
-            <section className="rounded-2xl bg-[#eaf0df] p-6">
-              <Icon name="balance" className="mb-4 text-[#6c8452]" />
-              <h2 className="font-serif text-2xl">Confirm in Venmo.</h2>
-              <p className="muted mt-3 text-xs">
-                These links open a payment or request; they don’t send money
-                automatically. Verify the recipient and amount. Squared can’t
-                confirm completed payments, so totals won’t change just because
-                you opened Venmo.
-              </p>
-            </section>
-          </aside>
+          )}
         </div>
-      )}
+        {hasSidebar && (
+          <aside className="min-w-0 space-y-6" aria-label="Trip details">
+            {statistics}
+            {showPaymentDetails && (
+              <>
+                <section className="panel p-5">
+                  <h2 className="font-semibold">Venmo usernames</h2>
+                  <p className="muted mt-2 text-xs">
+                    Saved only on this device. Confirm each username with your
+                    friend before paying.
+                  </p>
+                  <div className="mt-3 divide-y divide-[#edf0e8]">
+                    {people.map((person) => (
+                      <button
+                        key={person.id}
+                        onClick={() => editUsername(person)}
+                        className="flex min-h-14 w-full items-center justify-between gap-3 py-3 text-left"
+                      >
+                        <span className="min-w-0 text-sm">
+                          <span className="block">{person.name}</span>
+                          <span className="block break-all text-xs text-[#5e6b5f]">
+                            {usernames[person.id]
+                              ? `@${usernames[person.id]}`
+                              : "Not added yet"}
+                          </span>
+                        </span>
+                        <span className="text-xs underline">
+                          {usernames[person.id] ? "Edit" : "Add"}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+                <section className="rounded-2xl bg-[#eaf0df] p-6">
+                  <Icon name="balance" className="mb-4 text-[#6c8452]" />
+                  <h2 className="font-serif text-2xl">Confirm in Venmo.</h2>
+                  <p className="muted mt-3 text-xs">
+                    These links open a payment or request; they don’t send money
+                    automatically. Verify the recipient and amount. Squared
+                    can’t confirm completed payments, so totals won’t change
+                    just because you opened Venmo.
+                  </p>
+                </section>
+              </>
+            )}
+          </aside>
+        )}
+      </div>
       {editingPerson && (
         <Modal
           open

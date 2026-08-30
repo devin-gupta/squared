@@ -10,6 +10,7 @@ export const LineItemSchema = z.object({
 export const TransactionParsedSchema = z.object({
   description: z.string().describe('Transaction description (e.g., "Dinner at Aspen Grill")'),
   total_amount: z.number().describe('Total transaction amount'),
+  currency: z.string().default('USD').describe('Original ISO 4217 currency code. Do not convert amounts. Use UNKNOWN when a foreign currency is ambiguous.'),
   payer_name: z.string().optional().describe('Name of the person who paid (if mentioned)'),
   split_type: z.enum(['equal', 'custom']).describe('How to split the transaction'),
   adjustments: z.array(z.object({

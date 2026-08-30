@@ -3,7 +3,8 @@ export const PARSE_TRANSACTION_PROMPT = `You are a transaction parser for a grou
 You MUST return a JSON object with the following structure:
 {
   "description": "string (required - transaction description, e.g. 'Dinner at Aspen Grill' or 'Groceries')",
-  "total_amount": number (required - total amount in USD),
+  "total_amount": number (required - total amount in the original currency),
+  "currency": "string (ISO 4217 code such as USD, INR, EUR, GBP)",
   "split_type": "equal" | "custom" (required),
   "payer_name": "string (optional - name of person who paid)",
   "category": "string (optional - e.g. 'food', 'gas', 'lodging', 'alcohol')",
@@ -13,7 +14,7 @@ You MUST return a JSON object with the following structure:
 
 Rules:
 1. ALWAYS include "description" field - use the transaction text or infer a description
-2. Extract the total amount (always in USD)
+2. Extract the original amount and currency. NEVER perform currency conversion or invent an exchange rate. Keep total_amount, adjustments, and line_items in that same original currency. Default to USD only when no foreign currency is indicated. For an ambiguous foreign currency, or mixed currencies in one expense, set currency to UNKNOWN for manual review. Recognize rupees/₹ as INR, euros/€ as EUR, and pounds/£ as GBP. A bare $ defaults to USD unless a country or another dollar currency is specified.
 3. Identify who paid (if mentioned by name) - IMPORTANT: The payer_name MUST match one of the available member names exactly. If a name is mentioned but doesn't exactly match, try to match it to the closest available member name (e.g., "puja" → "poojagupta23", "raj" → "Rajat"). Only include payer_name if you can confidently match it to an available member.
 4. Default split is "equal" unless exceptions are mentioned
 5. If exceptions are mentioned, use "custom" split type with adjustments
@@ -30,6 +31,7 @@ You MUST return a JSON object with the following structure:
 {
   "description": "string (required - merchant/store name from receipt)",
   "total_amount": number (required - total amount from receipt),
+  "currency": "string (original ISO 4217 currency code, or UNKNOWN if ambiguous)",
   "split_type": "equal" | "custom" (required),
   "payer_name": "string (optional - if mentioned)",
   "category": "string (optional - e.g. 'food', 'groceries', 'gas')",
@@ -45,7 +47,7 @@ You MUST return a JSON object with the following structure:
 
 Rules:
 1. ALWAYS include "description" field - use the merchant/store name from the receipt
-2. Extract the total amount from the receipt
+2. Extract the total amount and original currency from the receipt. NEVER convert amounts or invent exchange rates. All line_items must use that same currency. Use UNKNOWN if a foreign currency is indicated but cannot be identified, or the receipt mixes currencies. Default to USD only when no foreign currency is indicated.
 3. Break down the receipt into line items by category:
    - Separate alcohol from food
    - Group similar items together

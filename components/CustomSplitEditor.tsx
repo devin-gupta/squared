@@ -11,6 +11,7 @@ import {
 interface CustomSplitEditorProps {
   members: { id: string; name: string }[];
   totalAmount: number;
+  currency?: string;
   tripId?: string | null;
   existingAdjustments?: SplitAllocation[];
   onChange: (adjustments: SplitAllocation[]) => void;
@@ -19,11 +20,13 @@ interface CustomSplitEditorProps {
 export default function CustomSplitEditor({
   members,
   totalAmount,
+  currency = "USD",
   tripId,
   existingAdjustments = [],
   onChange,
 }: CustomSplitEditorProps) {
   const groupId = useId();
+  const prefix = currency === "USD" ? "$" : `${currency} `;
   const [amounts, setAmounts] = useState<Record<string, string>>(() =>
     Object.fromEntries(
       members.map((m) => [
@@ -46,6 +49,7 @@ export default function CustomSplitEditor({
     totalAmount,
     members.map((m) => m.id),
     allocations,
+    currency,
   );
   const apply = (next: SplitAllocation[]) => {
     setAmounts(
@@ -70,7 +74,7 @@ export default function CustomSplitEditor({
           ...(await aiRequestHeaders()),
         },
         body: JSON.stringify({
-          text: `Split a total of $${totalAmount.toFixed(2)}: ${instructions}`,
+          text: `Split a total of ${currency} ${totalAmount.toFixed(2)}. All amounts are in ${currency}: ${instructions}`,
           tripId,
         }),
       });
@@ -96,6 +100,7 @@ export default function CustomSplitEditor({
         totalAmount,
         members.map((m) => m.id),
         next,
+        currency,
       );
       if (issue) throw new Error(`Check the suggested amounts: ${issue}`);
       apply(next);
@@ -111,7 +116,7 @@ export default function CustomSplitEditor({
     <fieldset className="rounded-2xl border border-[#e1e5dc] bg-[#f8faf5] p-4">
       <legend className="px-1 text-sm font-semibold">Custom amounts</legend>
       <p className="muted mb-3 text-xs">
-        Enter what each person owes—not what they paid. Use $0 for anyone who
+        Enter each person’s share in {currency}. Use {prefix}0 for anyone who
         didn’t take part.
       </p>
       <button
@@ -142,7 +147,7 @@ export default function CustomSplitEditor({
             </label>
             <div className="flex shrink-0 items-center gap-2">
               <span aria-hidden="true" className="text-sm text-[#5e6b5f]">
-                $
+                {prefix}
               </span>
               <input
                 id={`${groupId}-${i}`}
@@ -173,7 +178,7 @@ export default function CustomSplitEditor({
         aria-live="polite"
         className={`mt-4 border-t border-[#dce2d8] pt-4 text-sm ${error ? "text-[#994630]" : "text-[#355745]"}`}
       >
-        {error || `All $${totalAmount.toFixed(2)} assigned.`}
+        {error || `All ${prefix}${totalAmount.toFixed(2)} assigned.`}
       </div>
       {tripId && (
         <div className="mt-4 border-t border-[#dce2d8] pt-3">
@@ -191,7 +196,7 @@ export default function CustomSplitEditor({
                 htmlFor={`${groupId}-instructions`}
                 className="block text-xs text-[#5e6b5f]"
               >
-                For example: Alex owes $20, split the rest equally.
+                For example: Alex owes {prefix}20, split the rest equally.
               </label>
               <textarea
                 id={`${groupId}-instructions`}

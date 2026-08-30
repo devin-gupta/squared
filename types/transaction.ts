@@ -1,6 +1,10 @@
+import type { CurrencyConversion } from '@/lib/currency/convert'
+
 export interface TransactionParsed {
   description: string
   total_amount: number
+  currency?: string
+  currency_conversion?: CurrencyConversion
   payer_id?: string
   payer_name?: string
   split_type: 'equal' | 'custom'
@@ -21,6 +25,7 @@ export interface Transaction {
   trip_id: string
   description: string
   total_amount: number
+  currency_conversion?: CurrencyConversion | null
   payer_id: string
   split_type: 'equal' | 'custom'
   receipt_url?: string | null
