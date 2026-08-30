@@ -249,6 +249,7 @@ const json = (r, b, s = 200) =>
       })
       .filter({ visible: true })
       .waitFor();
+    await page.waitForLoadState("networkidle");
     await page.reload();
     await visible();
     assert.equal(
@@ -311,6 +312,7 @@ const json = (r, b, s = 200) =>
         exact: true,
       })
       .waitFor();
+    await page.waitForLoadState("networkidle");
     await page.reload();
     d = page.getByRole("dialog");
     assert.equal(
@@ -354,6 +356,7 @@ const json = (r, b, s = 200) =>
       (await db.query("SELECT count(*)::int n FROM transactions")).rows[0].n,
       1,
     );
+    await page.waitForLoadState("networkidle");
     await page.reload();
     d = page.getByRole("dialog");
     assert(
@@ -413,6 +416,17 @@ const json = (r, b, s = 200) =>
     await d.getByRole("button", { name: "Save", exact: true }).click();
     await visible();
     await page.getByRole("button", { name: "Undo", exact: true }).click();
+    // The expense description can still be visible in history while undo is
+    // in flight. Wait for its completion before asserting or navigating away.
+    await page
+      .getByRole("button", { name: "Dismiss undo", exact: true })
+      .waitFor({ state: "hidden" });
+    await page
+      .getByText("Loading expenses…", { exact: true })
+      .waitFor({ state: "hidden" });
+    await page
+      .getByText("Loading history…", { exact: true })
+      .waitFor({ state: "hidden" });
     await page
       .getByText("Iceland car rental", { exact: true })
       .first()
@@ -441,6 +455,17 @@ const json = (r, b, s = 200) =>
       0,
     );
     await page.getByRole("button", { name: "Undo", exact: true }).click();
+    // The expense description can still be visible in history while undo is
+    // in flight. Wait for its completion before asserting or navigating away.
+    await page
+      .getByRole("button", { name: "Dismiss undo", exact: true })
+      .waitFor({ state: "hidden" });
+    await page
+      .getByText("Loading expenses…", { exact: true })
+      .waitFor({ state: "hidden" });
+    await page
+      .getByText("Loading history…", { exact: true })
+      .waitFor({ state: "hidden" });
     await page
       .getByText("Iceland car rental", { exact: true })
       .first()
