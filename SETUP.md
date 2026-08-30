@@ -14,6 +14,8 @@
    NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
    OPENROUTER_API_KEY=your_openrouter_api_key
+   # Optional paid fallback, used only after a primary rate limit:
+   OPENAI_API_KEY=your_openai_api_key
    ```
 
 3. **Run database migration** - See Step 2 below
@@ -33,6 +35,8 @@ Create a `.env.local` file in the root directory with the following content:
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
 OPENROUTER_API_KEY=your_openrouter_api_key
+# Optional paid fallback, used only after a primary rate limit:
+OPENAI_API_KEY=your_openai_api_key
 ```
 
 **Important Notes:**
@@ -45,7 +49,7 @@ OPENROUTER_API_KEY=your_openrouter_api_key
 Receipt and booking images can be attached with the picker, pasted into the Add Expense box, or dropped onto it. Use one JPEG, PNG, or WebP up to 4 MB; typed notes are sent with the image to clarify the payer or split. Image results always open for review before saving. The parser retains the printed total for review and interprets locale-specific separators (for example, `79.086 ISK` means 79,086 Icelandic króna). Conversion uses the current reference rate, not an AI-generated rate, and the ledger remains in USD. Categories include car rental, flights, public transport, parking/tolls, insurance, visas, SIM/eSIM, and other travel costs.
 
 For an opt-in live image evaluation, run `node scripts/evaluate-receipt.cjs /path/to/receipt.png 3`. This sends that image to the configured AI providers, including the paid fallback when enabled, but does not upload it to Supabase or write an expense. The script stops on unrecovered provider errors; mocked tests do not prove live extraction accuracy.
-- AI requests require a signed-in trip member. Keep `OPENROUTER_API_KEY` server-only and out of Git.
+- AI requests require a signed-in trip member. Keep both AI keys server-only and out of Git.
 - Receipt uploads support JPEG, PNG, or WebP up to 4 MB; HEIC must be converted before upload.
 - You can find your publishable key in Supabase Dashboard → Settings → API → Publishable key
 
@@ -183,6 +187,7 @@ are not automatically reinterpreted as another currency.
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
    - `OPENROUTER_API_KEY` (mark Sensitive for Production and Preview; never prefix with `NEXT_PUBLIC_`)
+   - `OPENAI_API_KEY` (optional rate-limit fallback; mark Sensitive for each environment where it should be enabled)
 4. Deploy — Vercel detects Next.js, installs from the lockfile, runs the regression tests, and builds. A successful production-branch build is promoted automatically.
 
 The `vercel.json` file is already configured with proper PWA headers and caching strategies.
