@@ -12,11 +12,13 @@ export default function AuthModal({
   isOpen,
   onClose,
   inviteCode,
+  tripName,
   notice,
 }: {
   isOpen: boolean;
   onClose?: () => void;
   inviteCode?: string | null;
+  tripName?: string | null;
   notice?: string;
 }) {
   const { signIn } = useAuth();
@@ -62,14 +64,16 @@ export default function AuthModal({
         success
           ? "Check your inbox."
           : inviteCode
-            ? "Sign in to join the trip."
+            ? tripName
+              ? `Join ${tripName}`
+              : "Sign in to join the trip."
             : "Welcome to Squared."
       }
       description={
         success
           ? "Your sign-in link is on its way."
           : inviteCode
-            ? "Your invite is saved. Choose how to sign in."
+            ? "Your invite is saved. Sign in to track expenses and split bills together."
             : "Sign in with Google or an email link."
       }
     >

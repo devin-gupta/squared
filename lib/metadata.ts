@@ -1,5 +1,10 @@
 import type { Metadata } from "next";
 import { normalizeInvite } from "./auth/preferences";
+import {
+  invitePath,
+  invitePreviewTitle,
+  inviteDescription,
+} from "./trips/invite";
 
 export const siteUrl = new URL(
   process.env.NEXT_PUBLIC_SITE_URL || "https://squared-omega.vercel.app",
@@ -35,21 +40,20 @@ export const socialMetadata: Metadata = {
   },
 };
 
-export function homeMetadata(rawCode: string | string[] | undefined): Metadata {
+export function homeMetadata(
+  rawCode: string | string[] | undefined,
+  name?: unknown,
+): Metadata {
   const code = typeof rawCode === "string" ? normalizeInvite(rawCode) : null;
-  // Next 15's OG resolver drops queries on root URLs. Our existing /trip/CODE
-  // route redirects to the same join flow, and preserves the code in previews.
-  const url = new URL(code ? `/trip/${code}` : "/", siteUrl);
-  const title = code
-    ? "You’re invited. Join your people."
-    : "Good trips. Clear tabs.";
-  const detail = code
-    ? "The trip is better together. Join your friends on Squared to share expenses and keep the good times simple."
-    : description;
-  // No database lookups or private trip information are exposed to crawlers.
+  // Next 15's OG resolver drops queries on root URLs. The /trip/CODE preview
+  // preserves both the code and the optional public display label.
+  const url = new URL(code ? invitePath(code, name)! : "/", siteUrl);
+  const title = code ? invitePreviewTitle(name) : "Good trips. Clear tabs.";
+  const detail = code ? inviteDescription : description;
+  // Only the sender's display label is exposed; no database/private-data lookup.
   // Keep the invitation in og:url so preview taps never lose the join context.
   return {
-    title: code ? "You’re invited — Squared" : socialMetadata.title,
+    title: code ? `${title} — Squared` : socialMetadata.title,
     description: detail,
     openGraph: { ...socialMetadata.openGraph, title, description: detail, url },
     twitter: { ...socialMetadata.twitter, title, description: detail },

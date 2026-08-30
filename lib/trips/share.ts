@@ -1,42 +1,43 @@
-import { normalizeInvite } from "../auth/preferences";
+import { invitePath } from "./invite";
 
-export function generateShareUrl(inviteCode: string): string {
+export function generateShareUrl(
+  inviteCode: string,
+  tripName?: string,
+): string {
   if (typeof window === "undefined") {
     return "";
   }
-  const code = normalizeInvite(inviteCode);
-  if (!code) return "";
-  const url = new URL(`/trip/${code}`, window.location.origin);
+  const path = invitePath(inviteCode, tripName);
+  if (!path) return "";
+  const url = new URL(path, window.location.origin);
   return url.toString();
 }
 
 export async function shareTrip(
   inviteCode: string,
   tripName: string,
-): Promise<boolean> {
-  const shareUrl = generateShareUrl(inviteCode);
-  if (!shareUrl) return false;
+): Promise<"shared" | "copied" | "cancelled" | "failed"> {
+  const shareUrl = generateShareUrl(inviteCode, tripName);
+  if (!shareUrl) return "failed";
 
   // Check if Web Share API is available
   if (navigator.share) {
     try {
       await navigator.share({
-        title: `Join ${tripName} on Squared`,
-        // Let Messages display the URL's rich preview without an extra copy
-        // of the code or a long text block. The code is already in the URL.
+        // Link only. The page supplies the trip name and invitation copy.
         url: shareUrl,
       });
-      return true;
+      return "shared";
     } catch (error) {
-      // User cancelled or error occurred
-      if ((error as Error).name !== "AbortError") {
-        console.error("Error sharing:", error);
-      }
-      return false;
+      // Cancelling a share must not unexpectedly overwrite the clipboard.
+      if ((error as Error).name === "AbortError") return "cancelled";
+      // A denied/failed share can lose its user gesture. Offer an explicit
+      // copy button instead of assuming a subsequent clipboard write will work.
+      return "failed";
     }
   }
 
-  return false;
+  return (await copyToClipboard(shareUrl)) ? "copied" : "failed";
 }
 
 export async function copyToClipboard(text: string): Promise<boolean> {

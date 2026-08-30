@@ -102,11 +102,13 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             {inviteCode ? "You’re invited" : "Welcome back"}
           </p>
           <h1 className="page-title">
-            {inviteCode ? "Join your people." : "Let’s get you signed in."}
+            {inviteCode
+              ? "You’re invited to a trip."
+              : "Let’s get you signed in."}
           </h1>
           <p className="muted mt-4">
             {inviteCode
-              ? "Sign in and we’ll take you straight to the shared trip. No new trip to create."
+              ? "Track expenses, split bills, and settle up together. Sign in and we’ll open your invited trip."
               : "Request a fresh link to continue."}
           </p>
           {inviteCode && (
@@ -126,7 +128,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             className="btn-primary mt-6"
             onClick={() => setShowAuth(true)}
           >
-            Continue with email <Icon name="arrow" width="17" />
+            Continue to the trip <Icon name="arrow" width="17" />
           </button>
           <button
             className="mt-4 min-h-11 text-sm underline underline-offset-4"

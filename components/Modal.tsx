@@ -71,8 +71,11 @@ export default function Modal({
       className="modal-card max-h-[85dvh] overflow-y-auto overscroll-contain text-accent backdrop:bg-[#183023]/35 backdrop:backdrop-blur-sm"
     >
       <div className="mb-6 flex items-start justify-between gap-4">
-        <div>
-          <h2 id={titleId} className="font-serif text-3xl tracking-tight">
+        <div className="min-w-0">
+          <h2
+            id={titleId}
+            className="break-words font-serif text-3xl tracking-tight"
+          >
             {title}
           </h2>
           {description && (

@@ -13,11 +13,14 @@ async function main() {
   ];
   let expected;
   for (const agent of agents) {
-    const response = await fetch(`${origin}/trip/INVITEAA`, {
-      headers: { "User-Agent": agent },
-    });
+    const response = await fetch(
+      `${origin}/trip/INVITEAA?name=Yosemite+Weekend`,
+      {
+        headers: { "User-Agent": agent },
+      },
+    );
     assert.equal(response.status, 200);
-    assert.equal(new URL(response.url).searchParams.get("code"), "INVITEAA");
+    assert.equal(new URL(response.url).pathname, "/trip/INVITEAA");
     const html = await response.text();
     assert(
       Buffer.byteLength(html) < 1024 * 1024,
@@ -48,8 +51,20 @@ async function main() {
       height: property("og:image:height"),
       card: property("twitter:card"),
     };
-    assert.equal(metadata.title, "You’re invited. Join your people.");
+    assert.equal(
+      metadata.title,
+      "You’re invited to Yosemite Weekend — split bills together",
+    );
     assert.equal(new URL(metadata.url).pathname, "/trip/INVITEAA");
+    assert.equal(
+      new URL(metadata.url).searchParams.get("name"),
+      "Yosemite Weekend",
+    );
+    assert(
+      html.includes(
+        "Track shared expenses, split bills, and settle up together.",
+      ),
+    );
     assert.equal(new URL(metadata.image).protocol, "https:");
     assert.equal(metadata.width, "1200");
     assert.equal(metadata.height, "630");

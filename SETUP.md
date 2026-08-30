@@ -234,14 +234,26 @@ editing them to regenerate the committed PNGs and multi-resolution favicon. The
 script uses Sharp, installed by Next.js. No image generation service is needed
 at build time or when someone shares a link.
 
-New invite URLs use `/trip/INVITEAA`, which server-redirects to the existing
-`/?code=INVITEAA` join flow; old links continue to work. The path format also
-avoids Next.js 15's Open Graph resolver dropping queries on root URLs.
-Their Open Graph and Twitter metadata are
+New invite URLs use `/trip/INVITEAA?name=Yosemite+Weekend`. Native sharing and
+clipboard fallback send **only this URL**, without a message body or separate
+title field. The sender sees a preview before sharing; QR and link-only copy
+remain available. Cancelling native sharing never changes the clipboard.
+
+The public landing page shows the invitation, trip name, artwork, and reason to
+join before sign-in. Google sign-in is available directly; email is an alternative.
+Signed-in recipients continue into the existing `/?code=INVITEAA` join flow.
+Old nameless `/trip/CODE` and `/?code=CODE` links still work with generic copy.
+The path format also avoids Next.js 15 dropping queries on root Open Graph URLs.
+Open Graph and Twitter metadata are
 rendered into the initial HTML, with a public 1200×630 image and a high-resolution
 Apple touch icon. Preview crawlers do not need to sign in or run JavaScript.
-Metadata never fetches trip names, members, or expenses. `og:url` preserves the
-validated invite code; invite pages are marked `noindex`.
+The optional `name` is a bounded, escaped display label supplied by the sender.
+It is public to anyone receiving the link, and is not a verified database value.
+It never chooses a trip or grants membership: after authentication the invite
+code is resolved against Supabase. Metadata never fetches members, expenses,
+balances, or trip records, so there is no database/image-generation dependency
+on preview loads. `og:url` preserves both the code and label, and invite pages
+are marked `noindex`. If a trip is renamed, reshare from the app for a fresh label.
 Run `node scripts/check-share-preview.cjs https://squared-omega.vercel.app` to
 check the deployed HTML as multiple crawlers and validate image dimensions.
 
