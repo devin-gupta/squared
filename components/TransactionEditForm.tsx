@@ -8,6 +8,8 @@ import ReceiptLineItemEditor from "./ReceiptLineItemEditor";
 import CustomSplitEditor from "./CustomSplitEditor";
 import { customSplitError } from "@/lib/transactions/splits";
 import CurrencyReference from "./CurrencyReference";
+import { CATEGORIES, normalizeCategory } from "@/lib/categories";
+import { expenseEdits } from "@/lib/transactions/edit";
 
 interface TransactionEditFormProps {
   transaction: Transaction & {
@@ -38,6 +40,9 @@ export default function TransactionEditForm({
   onDelete,
   onCancel,
 }: TransactionEditFormProps) {
+  const [category, setCategory] = useState(
+    normalizeCategory(transaction.category),
+  );
   const [description, setDescription] = useState(transaction.description);
   const [totalAmount, setTotalAmount] = useState(
     transaction.total_amount.toString(),
@@ -65,9 +70,22 @@ export default function TransactionEditForm({
   const [error, setError] = useState<string | null>(null);
 
   const isReceipt = transaction.line_items && transaction.line_items.length > 0;
+  const submitData = expenseEdits(transaction, {
+    description,
+    totalAmount: parseFloat(totalAmount) || 0,
+    payerId,
+    splitType,
+    category,
+    lineItems,
+    adjustments,
+  });
 
   const splitError =
-    !isReceipt && splitType === "custom"
+    !isReceipt &&
+    splitType === "custom" &&
+    (submitData.total_amount !== undefined ||
+      submitData.split_type !== undefined ||
+      submitData.adjustments !== undefined)
       ? customSplitError(
           Number(totalAmount),
           memberNames.map((m) => m.id),
@@ -84,24 +102,6 @@ export default function TransactionEditForm({
     }
     setIsSaving(true);
     setError(null);
-
-    const submitData: Partial<Transaction> & {
-      lineItems?: LineItem[];
-      adjustments?: Array<{ memberId: string; amount: number }>;
-    } = {
-      description,
-      total_amount: parseFloat(totalAmount) || 0,
-      payer_id: payerId,
-      split_type: splitType,
-    };
-
-    if (isReceipt) {
-      submitData.lineItems = lineItems;
-    }
-
-    if (splitType === "custom") {
-      submitData.adjustments = adjustments;
-    }
 
     try {
       await onSubmit(submitData);
@@ -193,6 +193,29 @@ export default function TransactionEditForm({
             ))}
           </select>
         </div>
+
+        {!isReceipt && (
+          <div>
+            <label
+              htmlFor="edit-category"
+              className="block text-sm font-medium text-accent/70 mb-2"
+            >
+              Category
+            </label>
+            <select
+              id="edit-category"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="w-full px-4 py-3 bg-transparent border-b-2 border-accent/20 text-accent focus:outline-none focus:border-accent"
+            >
+              {CATEGORIES.map(([code, label]) => (
+                <option key={code} value={code}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {!isReceipt && (
           <div>

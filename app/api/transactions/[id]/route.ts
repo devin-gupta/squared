@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { Database } from "@/lib/supabase/types";
+import { CATEGORIES } from "@/lib/categories";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabasePublishableKey =
@@ -19,6 +20,7 @@ export async function PUT(
       splitType,
       lineItems,
       adjustments,
+      category,
     } = body;
 
     const resolvedParams = await Promise.resolve(params);
@@ -69,11 +71,15 @@ export async function PUT(
       },
     );
 
-    // Set the session explicitly
-    await supabase.auth.setSession({
-      access_token: token,
-      refresh_token: "", // Not needed for server-side
-    } as any);
+    if (
+      category !== undefined &&
+      !CATEGORIES.some(([code]) => code === category)
+    ) {
+      return NextResponse.json(
+        { error: "Choose a supported category." },
+        { status: 400 },
+      );
+    }
 
     // Get current transaction to check split_type
     const { data: currentTransaction, error: fetchError } = await supabase
@@ -117,32 +123,39 @@ export async function PUT(
     if (payerId !== undefined) updateData.payer_id = payerId;
     if (splitType !== undefined) updateData.split_type = splitType;
     if (lineItems !== undefined) updateData.line_items = lineItems;
+    if (category !== undefined) updateData.category = category;
 
     // Update transaction
-    const updateResult = await supabase
-      .from("transactions")
-      // @ts-expect-error - Supabase type inference issue with update
+    const updateResult: {
+      data: Database["public"]["Tables"]["transactions"]["Row"] | null;
+      error: { code?: string } | null;
+    } = await (supabase.from("transactions") as any)
       .update(updateData)
-      .eq("id", transactionId);
-
-    if (updateResult.error) {
-      throw new Error(
-        `Failed to update transaction: ${updateResult.error.message}`,
-      );
-    }
-
-    // Fetch updated transaction
-    const { data: transaction, error: selectError } = await supabase
-      .from("transactions")
-      .select("*")
       .eq("id", transactionId)
+      .select("*")
       .single();
 
-    if (selectError || !transaction) {
+    if (updateResult.error || !updateResult.data) {
+      if (
+        category !== undefined &&
+        ["42703", "PGRST204"].includes(updateResult.error?.code || "")
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "Category storage is not ready. Ask the app owner to apply the category migration; no changes were saved.",
+          },
+          { status: 503 },
+        );
+      }
       throw new Error(
-        `Failed to fetch updated transaction: ${selectError?.message || "Transaction not found"}`,
+        "Couldn’t save this expense. Check your trip access and try again.",
       );
     }
+
+    // Confirm the UPDATE returned a row; a subsequent SELECT alone cannot prove
+    // that RLS allowed the edit. Category-only updates never touch adjustments.
+    const transaction = updateResult.data;
 
     const finalSplitType =
       splitType !== undefined ? splitType : currentSplitType;

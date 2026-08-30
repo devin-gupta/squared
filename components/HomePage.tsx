@@ -431,6 +431,7 @@ function HomeContent() {
             totalAmount: data.total_amount,
             payerId: data.payer_id,
             splitType: data.split_type,
+            category: data.category,
             lineItems: data.lineItems,
             adjustments: data.adjustments,
           }),
@@ -438,7 +439,8 @@ function HomeContent() {
       );
 
       if (!response.ok) {
-        throw new Error("Failed to update transaction");
+        const result = await response.json().catch(() => null);
+        throw new Error(result?.error || "Failed to update transaction");
       }
 
       setEditingTransaction(null);

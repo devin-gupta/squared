@@ -10,7 +10,6 @@ import { categoryLabel } from "@/lib/categories";
 
 export type DisplayTransaction = TransactionWithShares & {
   payer?: { display_name: string };
-  category?: string;
 };
 export const money = (amount: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
@@ -32,7 +31,7 @@ export default function TransactionCard({
   const detailsId = useId();
   const opensEditor = canEdit && !!onEdit;
   const category =
-    transaction.category || transaction.line_items?.[0]?.category || "Expense";
+    transaction.line_items?.[0]?.category || transaction.category || "Expense";
   const icon = /food|dining|coffee|drink/i.test(category)
     ? "coffee"
     : /stay|accommodation|lodging/i.test(category)

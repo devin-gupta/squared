@@ -62,6 +62,7 @@ export interface Database {
           payer_id: string
           split_type: 'equal' | 'custom'
           receipt_url: string | null
+          category: string | null
           line_items: Json | null
           created_at: string
           updated_at: string
@@ -76,6 +77,7 @@ export interface Database {
           payer_id: string
           split_type?: 'equal' | 'custom'
           receipt_url?: string | null
+          category?: string | null
           line_items?: Json | null
           created_at?: string
           updated_at?: string
@@ -90,6 +92,7 @@ export interface Database {
           payer_id?: string
           split_type?: 'equal' | 'custom'
           receipt_url?: string | null
+          category?: string | null
           line_items?: Json | null
           created_at?: string
           updated_at?: string

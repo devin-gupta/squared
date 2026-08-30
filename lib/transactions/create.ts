@@ -103,6 +103,7 @@ export async function createTransaction(
           payer_id: payerId,
           split_type: parsed.split_type,
           receipt_url: receiptUrl || null,
+          category: parsed.category || null,
           line_items: parsed.line_items || null,
           currency_conversion: parsed.currency_conversion,
         },
@@ -129,6 +130,7 @@ export async function createTransaction(
       payer_id: payerId,
       split_type: parsed.split_type,
       receipt_url: receiptUrl || null,
+      category: parsed.category || null,
       line_items: parsed.line_items || null,
       status: "finalized", // Finalize immediately for v1
     })

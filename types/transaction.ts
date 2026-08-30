@@ -30,6 +30,7 @@ export interface Transaction {
   currency_conversion?: CurrencyConversion | null;
   payer_id: string;
   split_type: "equal" | "custom";
+  category?: string | null;
   receipt_url?: string | null;
   line_items?: LineItem[] | null;
   created_at: string;

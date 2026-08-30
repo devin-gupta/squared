@@ -302,3 +302,9 @@ If you get errors about tables already existing:
   ```sql
   ALTER PUBLICATION supabase_realtime ADD TABLE transactions;
   ```
+
+### Categories for expenses without receipt items
+
+Apply `supabase/migrations/004_expense_categories.sql` after the currency migration and before deploying expense-level category editing. It adds a nullable `transactions.category` column and updates the atomic converted-expense function to retain it. No historical amounts, shares, or currency references are changed, and existing RLS remains in force.
+
+To recategorize an existing expense, open it from the trip overview or Expenses, choose **Category**, and save. Expenses with receipt items keep their per-item category selectors. Manual entry also has a category selector. A category-only edit sends only the category and leaves all financial fields untouched; statistics use the expense category when there are no receipt items.

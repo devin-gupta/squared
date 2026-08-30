@@ -8,6 +8,7 @@ import ReceiptLineItemEditor from "./ReceiptLineItemEditor";
 import CurrencySelector from "./CurrencySelector";
 import { customSplitError } from "@/lib/transactions/splits";
 import { TransactionParsed } from "@/types/transaction";
+import { CATEGORIES, normalizeCategory } from "@/lib/categories";
 
 interface ManualTransactionFormProps {
   tripId?: string | null;
@@ -26,6 +27,9 @@ export default function ManualTransactionForm({
   onDelete,
   onCancel,
 }: ManualTransactionFormProps) {
+  const [category, setCategory] = useState(
+    normalizeCategory(initialData?.category),
+  );
   const [description, setDescription] = useState(
     initialData?.description || "",
   );
@@ -80,6 +84,7 @@ export default function ManualTransactionForm({
       description,
       total_amount: parseFloat(totalAmount) || 0,
       currency,
+      category: lineItems.length ? undefined : category,
       line_items: lineItems.length ? lineItems : undefined,
       payer_name: payerName || undefined,
       split_type: splitType,
@@ -229,6 +234,29 @@ export default function ManualTransactionForm({
             }
           </div>
         </div>
+
+        {!lineItems.length && (
+          <div>
+            <label
+              htmlFor="expense-category"
+              className="block text-sm font-medium text-accent/70 mb-2"
+            >
+              Category
+            </label>
+            <select
+              id="expense-category"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="w-full px-4 py-3 bg-transparent border-b-2 border-accent/20 text-accent focus:outline-none focus:border-accent"
+            >
+              {CATEGORIES.map(([code, label]) => (
+                <option key={code} value={code}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {lineItems.length ? (
           <ReceiptLineItemEditor

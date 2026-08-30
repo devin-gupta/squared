@@ -55,7 +55,7 @@ const aliases: Record<string, string> = {
   tax: "fees",
   tip: "fees",
 };
-export function normalizeCategory(value: string | undefined): string {
+export function normalizeCategory(value: string | null | undefined): string {
   const key = (value || "other")
     .trim()
     .toLowerCase()
@@ -63,6 +63,6 @@ export function normalizeCategory(value: string | undefined): string {
   const category = aliases[key] || key;
   return CATEGORIES.some(([code]) => code === category) ? category : "other";
 }
-export function categoryLabel(value: string | undefined): string {
+export function categoryLabel(value: string | null | undefined): string {
   return CATEGORIES.find(([code]) => code === normalizeCategory(value))![1];
 }

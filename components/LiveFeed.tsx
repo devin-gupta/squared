@@ -57,6 +57,7 @@ export default function LiveFeed({ tripId }: LiveFeedProps) {
         totalAmount: data.total_amount,
         payerId: data.payer_id,
         splitType: data.split_type,
+        category: data.category,
       };
 
       if (data.lineItems !== undefined) {
@@ -88,10 +89,12 @@ export default function LiveFeed({ tripId }: LiveFeedProps) {
       );
 
       if (!response.ok) {
-        throw new Error("Failed to update transaction");
+        const result = await response.json().catch(() => null);
+        throw new Error(result?.error || "Failed to update transaction");
       }
 
       setEditingTransaction(null);
+      await refetch();
     } catch (error) {
       console.error("Error updating transaction:", error);
       throw error;

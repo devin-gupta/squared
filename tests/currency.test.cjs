@@ -168,9 +168,10 @@ test("rate lookup sends only a currency pair, validates the response, and reject
   await assert.rejects(rates.getUsdRate("../../evil"), /supported/);
 });
 
-test("foreign save uses one atomic RPC with USD shares and the conversion reference", async () => {
+test("foreign save uses one atomic RPC with category, USD shares and the conversion reference", async () => {
   const converted = currency.convertExpense(
     expense({
+      category: "car_rental",
       split_type: "custom",
       adjustments: [
         { user_name: "Sam", amount: 400 },
@@ -209,6 +210,8 @@ test("foreign save uses one atomic RPC with USD shares and the conversion refere
   assert.equal(result.totalAmount, 10);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].name, "create_converted_expense");
+  assert.equal(calls[0].args.expense.category, "car_rental");
+  assert.equal(calls[0].args.expense.line_items, null);
   assert.equal(
     calls[0].args.expense.currency_conversion.original_currency,
     "INR",
