@@ -427,6 +427,21 @@ export default function SettlementSummary({
           </aside>
         )}
       </div>
+      {!loading && !error && hasTrip && tripId && (
+        <section className="panel mt-8 p-6">
+          <h2 className="font-serif text-2xl">Same crew. New plans.</h2>
+          <p className="muted mt-2 text-sm">
+            Start another trip with these names already added. Expenses and
+            balances stay with this trip.
+          </p>
+          <Link
+            className="btn-primary mt-4"
+            href={`/?newTripFrom=${encodeURIComponent(tripId)}`}
+          >
+            Start another trip with this group
+          </Link>
+        </section>
+      )}
       {editingPerson && (
         <Modal
           open

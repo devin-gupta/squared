@@ -198,7 +198,14 @@ test("foreign save uses one atomic RPC with category, USD shares and the convers
     },
     async rpc(name, args) {
       calls.push({ name, args });
-      return { data: "saved-id", error: null };
+      return {
+        data: {
+          transactionId: "saved-id",
+          changeId: args.operation_id,
+          totalAmount: args.payload.total_amount,
+        },
+        error: null,
+      };
     },
   };
   const create = moduleAt("lib/transactions/create.ts", {
@@ -209,30 +216,41 @@ test("foreign save uses one atomic RPC with category, USD shares and the convers
   const result = await create.createTransaction("trip", converted, null, "Sam");
   assert.equal(result.totalAmount, 10);
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].name, "create_converted_expense");
-  assert.equal(calls[0].args.expense.category, "car_rental");
-  assert.equal(calls[0].args.expense.line_items, null);
+  assert.equal(calls[0].name, "commit_expense");
+  assert.equal(calls[0].args.payload.category, "car_rental");
+  assert.equal(calls[0].args.payload.line_items, null);
   assert.equal(
-    calls[0].args.expense.currency_conversion.original_currency,
+    calls[0].args.payload.currency_conversion.original_currency,
     "INR",
   );
   assert.deepEqual(
-    Array.from(calls[0].args.shares, (share) => share.amount),
+    Array.from(calls[0].args.payload.shares, (share) => share.amount),
     [4, 6],
   );
 });
 
-test("missing currency storage stops before member or expense writes", async () => {
+test("missing atomic-save migration cannot fall back to non-atomic expense inserts", async () => {
+  let calls = 0;
   const create = moduleAt("lib/transactions/create.ts", {
-    "../currency/client": { prepareUsdExpense: async parsed => currency.convertExpense(parsed, quote()) },
-    "../supabase/client": { supabase: {
-      from(table) {
-        assert.equal(table, "transactions");
-        return { select() { return this; }, limit: async () => ({ error: { code: "PGRST204" } }) };
+    "../supabase/client": {
+      supabase: {
+        rpc: async () => {
+          calls++;
+          return { error: { code: "PGRST202" } };
+        },
+        from() {
+          assert.fail("Do not attempt legacy inserts");
+        },
       },
-      rpc() { assert.fail("Do not save when the migration is missing"); },
-    } },
-    "../trips/addMember": { addMember() { assert.fail("Do not add members before storage is ready"); } },
+    },
+    "../currency/client": {},
   });
-  await assert.rejects(create.createTransaction("trip", expense()), /migration; no expense was saved/);
+  await assert.rejects(
+    create.commitPreparedExpense(
+      { tripId: "trip", payload: {} },
+      crypto.randomUUID(),
+    ),
+    /saving is being updated/,
+  );
+  assert.equal(calls, 1);
 });

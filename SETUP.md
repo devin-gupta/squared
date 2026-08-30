@@ -308,3 +308,54 @@ If you get errors about tables already existing:
 Apply `supabase/migrations/004_expense_categories.sql` after the currency migration and before deploying expense-level category editing. It adds a nullable `transactions.category` column and updates the atomic converted-expense function to retain it. No historical amounts, shares, or currency references are changed, and existing RLS remains in force.
 
 To recategorize an existing expense, open it from the trip overview or Expenses, choose **Category**, and save. Expenses with receipt items keep their per-item category selectors. Manual entry also has a category selector. A category-only edit sends only the category and leaves all financial fields untouched; statistics use the expense category when there are no receipt items.
+
+### Shared invitations and travel reliability
+
+Apply `supabase/migrations/005_group_travel.sql` after 004, before deploying this
+release. It adds name-claiming functions, atomic expense writes, a version column,
+and a member-readable expense history. Its policy/trigger replacements may trigger
+the SQL editor's destructive-operation warning; the migration does not delete
+existing expenses or reassign members. The DELETE statements inside the function
+body run only when someone later requests deletion or undo.
+
+Organizers can add friends by name when creating a trip or from the people list.
+Friends use the same shared QR/link, sign in, and explicitly choose an unclaimed
+name or add a distinct new name. Claiming preserves the member ID and all existing
+payments/shares. Existing members bypass this choice. A shared invite is a trusted
+invitation: anyone holding it can join and claim an unclaimed name. Keep it within
+the group. Claimed names and the organizer are not offered for claiming.
+
+Expense drafts (including attached images) are stored in IndexedDB on the current
+browser, scoped to the signed-in account and trip. Offline drafts say **Not synced
+yet**. Reconnecting does not post expenses automatically: the person explicitly
+saves when online. A previously loaded trip can use cached names for draft entry;
+loading an uncached app or signing in still requires a connection. Browser storage
+can be cleared or evicted, and private browsing may not retain drafts after the
+browser closes. Storage failures are shown, never silently described as saved.
+Drafts and remembered defaults do not transfer to another device.
+
+Before posting an expense, the app persists its operation UUID and exact USD
+payload, including the chosen exchange rate. An uncertain save retries that same
+request after reload. `commit_expense` atomically writes the expense, shares, and
+audit entry; repeated requests return the original result. Editing uses an expected
+version to reject stale changes. The original currency/payer/participants become
+the next expense's defaults, but explicit input overrides them.
+
+Undo is available after an expense change and from **Expense history**, including
+for deleted expenses. Only the actor's latest change to that expense can be undone,
+and only if no later change has occurred. Undo retains the original amounts,
+currency evidence, and member references. Removed members may prevent restoration.
+History begins with writes through this release; earlier changes are not invented.
+
+The settlement screen's **Start another trip with this group** shortcut pre-fills
+names only. It creates a fresh invite and does not copy balances, expenses, or
+other people's account memberships.
+
+Google consent branding is configured in the existing Google Cloud project's
+**Google Auth Platform → Branding**: use **Squared** and
+`public/brand/icon-512-v2.png`. Leave the working OAuth scopes and redirect URIs
+unchanged. The project owner has reported completing this configuration. Google
+may require verification before draft branding can be published; check the console's
+published status if the old name/logo remains visible. See Google's
+[brand verification requirements](https://developers.google.com/identity/verification/authentication-verification).
+No Apple sign-in, Home Screen prompts, or analytics were added in this release.

@@ -47,7 +47,10 @@ export function useAIParser({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
-  const parseText = async (text: string) => {
+  const parseText = async (
+    text: string,
+    defaults?: { currency: string; payerName?: string; participants: string[] },
+  ) => {
     if (!text.trim()) {
       return null;
     }
@@ -62,7 +65,7 @@ export function useAIParser({
           "Content-Type": "application/json",
           ...(await aiRequestHeaders()),
         },
-        body: JSON.stringify({ text, tripId }),
+        body: JSON.stringify({ text, tripId, defaults }),
       });
 
       await onSuccess?.(parsed);

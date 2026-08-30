@@ -6,6 +6,7 @@ interface MemberCardProps {
   member: {
     id: string;
     display_name: string;
+    user_id?: string | null;
   };
   onRemove?: () => void;
   canRemove?: boolean;
@@ -37,6 +38,11 @@ export default function MemberCard({
           <div className="break-words font-medium text-accent">
             {member.display_name}
           </div>
+          {member.user_id !== undefined && (
+            <p className="muted text-xs">
+              {member.user_id ? "Joined" : "Not joined yet"}
+            </p>
+          )}
         </div>
       </div>
       {canRemove && onRemove && (

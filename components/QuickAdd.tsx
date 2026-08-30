@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, useMemo } from "react";
+import { useDraftContext } from "./ExpenseDraftContext";
 import CameraButton from "./CameraButton";
 import Icon from "./Icon";
 import ExpenseProgress from "./ExpenseProgress";
@@ -37,8 +38,36 @@ export default function QuickAdd({
   const inputId = useId();
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const inFlight = useRef(false);
-  const [input, setInput] = useState("");
-  const [imageFile, setImageFile] = useState<File>();
+  const draftContext = useDraftContext();
+  const [localInput, setLocalInput] = useState("");
+  const [localImage, setLocalImage] = useState<File>();
+  const input = draftContext ? draftContext.draft?.text || "" : localInput;
+  const attached = draftContext?.draft?.image;
+  const imageFile = useMemo(
+    () =>
+      draftContext
+        ? attached
+          ? new File([attached.blob], attached.name, { type: attached.type })
+          : undefined
+        : localImage,
+    [attached, localImage, !!draftContext],
+  );
+  const locked = !!draftContext?.draft?.submission;
+  const setInput = (text: string) => {
+    if (draftContext) void draftContext.update({ text }).catch(() => {});
+    else setLocalInput(text);
+  };
+  const setImageFile = (file: File | undefined) => {
+    if (draftContext)
+      void draftContext
+        .update({
+          image: file
+            ? { blob: file, name: file.name, type: file.type }
+            : undefined,
+        })
+        .catch(() => {});
+    else setLocalImage(file);
+  };
   const [imagePreview, setImagePreview] = useState("");
   const [dragging, setDragging] = useState(false);
   const dragDepth = useRef(0);
@@ -59,7 +88,7 @@ export default function QuickAdd({
     return () => URL.revokeObjectURL(url);
   }, [imageFile]);
   const attachFiles = (files: File[]) => {
-    if (busy || inFlight.current || !files.length) return;
+    if (busy || locked || inFlight.current || !files.length) return;
     if (files.length !== 1) {
       setError(
         "Attach one image per expense. Your existing draft is unchanged.",
@@ -93,7 +122,7 @@ export default function QuickAdd({
         setSaved(result);
         setInput("");
         setImageFile(undefined);
-      } else onReview?.();
+      } else if (result?.status !== "draft") onReview?.();
     } catch (err) {
       setError(
         err instanceof Error
@@ -105,6 +134,12 @@ export default function QuickAdd({
       setSubmitting(false);
     }
   };
+  if (draftContext && !draftContext.ready)
+    return (
+      <p role="status" className="muted p-5">
+        Restoring your draft…
+      </p>
+    );
   return (
     <section
       className={`${embedded ? "" : "panel overflow-hidden"} ${dragging ? "rounded-2xl ring-2 ring-[#557344]" : ""}`}
@@ -191,6 +226,7 @@ export default function QuickAdd({
             ref={inputRef}
             id={inputId}
             autoFocus={autoFocus}
+            disabled={locked}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
@@ -216,6 +252,40 @@ export default function QuickAdd({
               ? "Drop one image to attach it."
               : "Type an expense, or paste/drop a receipt or booking image. JPEG, PNG or WebP, up to 4 MB."}
           </p>
+          {draftContext &&
+            (input || imageFile || draftContext.draft?.parsed || locked) && (
+              <div className="mt-3 text-xs" role="status">
+                {draftContext.storageStatus === "unavailable" ? (
+                  <p className="text-red-800">
+                    This browser couldn’t preserve your draft. Keep this page
+                    open.
+                  </p>
+                ) : (
+                  <p className="muted">
+                    {draftContext.storageStatus === "saving"
+                      ? "Saving draft on this device…"
+                      : draftContext.offline
+                        ? "Saved on this device · Not synced yet"
+                        : "Draft saved on this device · Not saved to the trip"}
+                  </p>
+                )}
+                {locked && (
+                  <p className="mt-2">
+                    The last save wasn’t confirmed. Retry to check it before
+                    changing this expense; it won’t create a duplicate.
+                  </p>
+                )}
+                {!locked && (
+                  <button
+                    type="button"
+                    className="mt-2 min-h-8 underline"
+                    onClick={() => void draftContext.clear().catch(() => {})}
+                  >
+                    Discard draft
+                  </button>
+                )}
+              </div>
+            )}
           {imageFile && (
             <div className="mt-2 flex items-center justify-between gap-3 rounded-lg bg-[#edf1e9] px-3 py-2 text-xs">
               {imagePreview && (
@@ -231,6 +301,7 @@ export default function QuickAdd({
               <button
                 type="button"
                 onClick={() => setImageFile(undefined)}
+                disabled={locked}
                 aria-label="Remove receipt"
                 className="p-2"
               >
@@ -254,14 +325,20 @@ export default function QuickAdd({
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
             <CameraButton
               onImageCapture={(file) => attachFiles([file])}
-              disabled={busy}
+              disabled={busy || locked}
             />
             <button
               type="submit"
               disabled={!input.trim() && !imageFile}
               className="btn-primary"
             >
-              {error ? "Try again" : "Add expense"}
+              {draftContext?.offline
+                ? "Save draft"
+                : locked
+                  ? "Check saved expense"
+                  : error
+                    ? "Try again"
+                    : "Add expense"}
               <Icon name="arrow" width="16" />
             </button>
           </div>

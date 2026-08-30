@@ -13,6 +13,7 @@ export interface TransactionParsed {
   category?: string;
   amount_text?: string;
   review_note?: string;
+  participants?: string[];
 }
 
 export interface LineItem {
@@ -24,6 +25,7 @@ export interface LineItem {
 
 export interface Transaction {
   id: string;
+  version?: number;
   trip_id: string;
   description: string;
   total_amount: number;

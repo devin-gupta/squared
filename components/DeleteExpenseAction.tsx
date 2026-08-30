@@ -41,7 +41,7 @@ export default function DeleteExpenseAction({
           </p>
           <p className="mt-1 text-xs leading-relaxed text-red-800">
             This removes it from the trip and updates everyone’s totals. You
-            can’t undo this.
+            can undo this from Expense history if nobody has changed it since.
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
             <button

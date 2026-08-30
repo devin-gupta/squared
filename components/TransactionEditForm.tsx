@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Modal from "./Modal";
 import DeleteExpenseAction from "./DeleteExpenseAction";
 import { Transaction, LineItem } from "@/types/transaction";
 import ReceiptLineItemEditor from "./ReceiptLineItemEditor";
 import CustomSplitEditor from "./CustomSplitEditor";
 import { customSplitError } from "@/lib/transactions/splits";
+import ExpenseHistory from "./ExpenseHistory";
 import CurrencyReference from "./CurrencyReference";
 import { CATEGORIES, normalizeCategory } from "@/lib/categories";
 import { expenseEdits } from "@/lib/transactions/edit";
@@ -24,6 +25,7 @@ interface TransactionEditFormProps {
   tripId: string | null;
   onSubmit: (
     data: Partial<Transaction> & {
+      operationId?: string;
       lineItems?: LineItem[];
       adjustments?: Array<{ memberId: string; amount: number }>;
     },
@@ -40,6 +42,7 @@ export default function TransactionEditForm({
   onDelete,
   onCancel,
 }: TransactionEditFormProps) {
+  const operationId = useRef(crypto.randomUUID());
   const [category, setCategory] = useState(
     normalizeCategory(transaction.category),
   );
@@ -104,7 +107,7 @@ export default function TransactionEditForm({
     setError(null);
 
     try {
-      await onSubmit(submitData);
+      await onSubmit({ ...submitData, operationId: operationId.current });
     } catch (err) {
       setError(
         err instanceof Error
@@ -289,6 +292,11 @@ export default function TransactionEditForm({
           </button>
         </div>
       </form>
+      <ExpenseHistory
+        tripId={tripId}
+        expenseId={transaction.id}
+        onChange={onCancel}
+      />
       {onDelete && (
         <DeleteExpenseAction
           onDelete={onDelete}

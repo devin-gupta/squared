@@ -1,57 +1,73 @@
-'use client'
-
-import { useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-
-type UndoType = 'transaction' | 'member'
-
-interface UndoToastProps {
-  show: boolean
-  type: UndoType
-  message: string
-  onUndo: () => void
-  onDismiss: () => void
-  itemId: string
-}
-
+"use client";
+import { useEffect, useRef, useState } from "react";
 export default function UndoToast({
   show,
-  type,
   message,
   onUndo,
   onDismiss,
   itemId,
-}: UndoToastProps) {
+}: {
+  show: boolean;
+  type: "transaction" | "member";
+  message: string;
+  onUndo: () => void | Promise<void>;
+  onDismiss: () => void;
+  itemId: string;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const dismiss = useRef(onDismiss);
+  dismiss.current = onDismiss;
   useEffect(() => {
-    if (show) {
-      const timer = setTimeout(() => {
-        onDismiss()
-      }, 5000) // 5 seconds
-
-      return () => clearTimeout(timer)
-    }
-  }, [show, onDismiss])
-
+    setError("");
+  }, [itemId]);
+  useEffect(() => {
+    if (!show || busy || error) return;
+    const timer = setTimeout(() => dismiss.current(), 30000);
+    return () => clearTimeout(timer);
+  }, [show, busy, error, itemId]);
+  if (!show) return null;
   return (
-    <AnimatePresence>
-      {show && (
-        <motion.div
-          initial={{ opacity: 0, y: -50 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -50 }}
-          className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50"
+    <div
+      role="status"
+      className="fixed bottom-[calc(160px+env(safe-area-inset-bottom))] lg:bottom-6 left-4 right-4 z-[70] mx-auto max-w-lg rounded-2xl bg-accent p-4 text-white shadow-lg"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm">{message}</span>
+        <button
+          className="min-h-11 font-medium underline"
+          disabled={busy}
+          onClick={async () => {
+            if (busy) return;
+            setBusy(true);
+            setError("");
+            try {
+              await onUndo();
+            } catch (e) {
+              setError(
+                e instanceof Error ? e.message : "Couldn’t undo. Try again.",
+              );
+            } finally {
+              setBusy(false);
+            }
+          }}
         >
-          <div className="bg-accent text-base px-6 py-3 rounded-full shadow-lg flex items-center gap-4">
-            <span className="text-sm">{message}</span>
-            <button
-              onClick={onUndo}
-              className="text-sm font-medium underline"
-            >
-              Undo
-            </button>
-          </div>
-        </motion.div>
+          {busy ? "Undoing…" : "Undo"}
+        </button>
+        <button
+          aria-label="Dismiss undo"
+          className="min-h-11 px-2"
+          disabled={busy}
+          onClick={onDismiss}
+        >
+          ×
+        </button>
+      </div>
+      {error && (
+        <p role="alert" className="mt-2 text-sm">
+          {error}
+        </p>
       )}
-    </AnimatePresence>
-  )
+    </div>
+  );
 }

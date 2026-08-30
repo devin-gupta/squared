@@ -9,6 +9,7 @@ module.exports = function moduleAt(file, dependencies = {}, globals = {}) {
     Date,
     URL,
     AbortSignal,
+    crypto,
     process: {
       env: {
         NEXT_PUBLIC_SUPABASE_URL: "https://squared.example.test",

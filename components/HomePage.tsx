@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ConnectedDashboard from "@/components/ConnectedDashboard";
 import Icon from "@/components/Icon";
@@ -13,10 +13,24 @@ import TransactionEditForm from "@/components/TransactionEditForm";
 import AuthGuard from "@/components/AuthGuard";
 import { useAuth } from "@/hooks/useAuth";
 import { createTrip } from "@/lib/trips/create";
-import { joinTrip } from "@/lib/trips/join";
+import { joinTrip, getInviteContext, InviteContext } from "@/lib/trips/join";
+import JoinTripChoice from "./JoinTripChoice";
+import { addTripNames } from "@/lib/trips/addMember";
 import { listTrips } from "@/lib/trips/list";
 import { useAIParser } from "@/hooks/useAIParser";
-import { createTransaction } from "@/lib/transactions/create";
+import {
+  ExpenseSaveError,
+  prepareExpense,
+  commitPreparedExpense,
+} from "@/lib/transactions/create";
+import { useExpenseDraft } from "@/hooks/useExpenseDraft";
+import { ExpenseDraftContext } from "./ExpenseDraftContext";
+import ExpenseHistory from "./ExpenseHistory";
+import { undoExpense } from "@/lib/transactions/history";
+import {
+  getExpenseDefaults,
+  rememberExpenseDefaults,
+} from "@/lib/drafts/defaults";
 import { TransactionParsed, LineItem } from "@/types/transaction";
 import type {
   ExpenseEntryProgress,
@@ -35,6 +49,7 @@ import {
   preferredTrip,
   rememberTrip,
   writePreference,
+  readPreference,
 } from "@/lib/auth/preferences";
 
 function HomeContent() {
@@ -45,6 +60,10 @@ function HomeContent() {
   const [entryProgress, setEntryProgress] =
     useState<ExpenseEntryProgress | null>(null);
   const [tripId, setTripId] = useState<string | null>(null);
+  const draftControl = useExpenseDraft(user?.id, tripId);
+  const undoRequests = useRef<Record<string, string>>({});
+  const deleteRequests = useRef<Record<string, string>>({});
+  const [nextTripNames, setNextTripNames] = useState<string[]>([]);
   const [trip, setTrip] = useState<Trip | null>(null);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
@@ -71,9 +90,25 @@ function HomeContent() {
   const [editingTransaction, setEditingTransaction] =
     useState<Transaction | null>(null);
   const [dashboardRevision, setDashboardRevision] = useState(0);
+  useEffect(() => {
+    if (
+      draftControl.ready &&
+      draftControl.draft?.parsed &&
+      (draftControl.draft.parsed.description.trim() ||
+        draftControl.draft.parsed.total_amount > 0) &&
+      !searchParams.has("code") &&
+      !searchParams.has("newTripFrom") &&
+      !pendingInvite()
+    ) {
+      setPendingParsed(draftControl.draft.parsed);
+      setPendingReceiptUrl(draftControl.draft.receiptUrl || null);
+      if (draftControl.draft.mode === "manual") setShowManualForm(true);
+    }
+  }, [draftControl.ready, tripId]);
   const [isLoadingTrip, setIsLoadingTrip] = useState(true);
 
   const [tripLoadError, setTripLoadError] = useState<string | null>(null);
+  const [joinContext, setJoinContext] = useState<InviteContext | null>(null);
   const [activeInvite, setActiveInvite] = useState<string | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
 
@@ -83,6 +118,7 @@ function HomeContent() {
     const accountId = user.id;
     const displayName =
       user.user_metadata?.display_name ||
+      user.user_metadata?.full_name ||
       user.email?.split("@")[0] ||
       "Traveler";
     const rawInvite = searchParams.get("code");
@@ -92,6 +128,7 @@ function HomeContent() {
     setActiveInvite(searchParams.has("code") ? rawInvite || "invalid" : invite);
     setIsLoadingTrip(true);
     setTripLoadError(null);
+    setJoinContext(null);
 
     const restoreTrip = async () => {
       try {
@@ -101,15 +138,24 @@ function HomeContent() {
           );
         if (invite) rememberInvite(invite);
         // Invite intent always takes priority over a previously selected trip.
-        const joinedId = invite
-          ? await joinTrip(invite, displayName, accountId)
-          : null;
+        let joinedId: string | null = null;
+        if (invite) {
+          const context = await getInviteContext(invite);
+          if (cancelled) return;
+          if (!context.memberId) {
+            setJoinContext(context);
+            return;
+          }
+          joinedId = context.tripId;
+        }
         const availableTrips = await listTrips(undefined, accountId);
         if (cancelled) return;
         setTrips(availableTrips);
         const storedId = preferredTrip(accountId);
         const selectedId =
           joinedId ||
+          availableTrips.find((t) => t.id === searchParams.get("newTripFrom"))
+            ?.id ||
           availableTrips.find((t) => t.id === storedId)?.id ||
           availableTrips[0]?.id;
         if (selectedId) {
@@ -124,6 +170,15 @@ function HomeContent() {
           setTripId(selectedId);
           setCurrentUser(memberName);
           rememberTrip(accountId, selectedId, memberName);
+          if (searchParams.get("newTripFrom") === selectedId) {
+            setNextTripNames(
+              loadedMembers
+                .filter((m) => m.user_id !== accountId)
+                .map((m) => m.display_name),
+            );
+            setShowStartTripModal(true);
+            router.replace("/");
+          }
         } else {
           setTripId(null);
           setTrip(null);
@@ -138,6 +193,32 @@ function HomeContent() {
           if (searchParams.has("code")) router.replace("/");
         }
       } catch (error) {
+        if (!cancelled && !invite && !navigator.onLine) {
+          try {
+            const id = preferredTrip(accountId);
+            const cached = JSON.parse(
+              readPreference(`squared:trip-context:${accountId}:${id}`) ||
+                "null",
+            );
+            if (
+              cached?.trip?.id === id &&
+              Array.isArray(cached.members) &&
+              cached.members.some((m: TripMember) => m.user_id === accountId)
+            ) {
+              setTrip(cached.trip);
+              setTripId(id);
+              setMembers(cached.members);
+              setMemberNames(
+                cached.members.map((m: TripMember) => m.display_name),
+              );
+              setCurrentUser(
+                cached.members.find((m: TripMember) => m.user_id === accountId)
+                  .display_name,
+              );
+              return;
+            }
+          } catch {}
+        }
         if (!cancelled)
           setTripLoadError(
             error instanceof Error
@@ -184,6 +265,11 @@ function HomeContent() {
       setTrip(loadedTrip);
       setMembers(loadedMembers);
       setMemberNames(loadedMembers.map((m) => m.display_name));
+      if (user)
+        writePreference(
+          `squared:trip-context:${user.id}:${selectedId}`,
+          JSON.stringify({ trip: loadedTrip, members: loadedMembers }),
+        );
     }
     return loadedMembers;
   };
@@ -214,83 +300,70 @@ function HomeContent() {
   ): Promise<ExpenseEntryResult> => {
     if (!tripId) throw new Error("Choose a trip before saving this expense.");
 
-    try {
-      const result = await createTransaction(
-        tripId,
-        parsed,
-        receiptUrl,
-        currentUser,
-      );
-
-      // Haptic feedback
-      if (navigator.vibrate) {
-        navigator.vibrate(50);
-      }
-
-      // Show undo toast - check if member was added
-      if (result.addedMember) {
-        setUndoState({
-          type: "member",
-          itemId: result.addedMember.id,
-          message: `${result.addedMember.name} added to trip`,
-        });
-      } else {
-        setUndoState({
-          type: "transaction",
-          itemId: result.transactionId,
-          message: "Transaction added",
-        });
-      }
-
-      // Refreshing the UI must not turn an already-committed expense into a failed save.
-      await loadMembers(tripId).catch(() => undefined);
-
-      // Reset state
-      setPendingParsed(null);
-      setPendingReceiptUrl(null);
-      setShowManualForm(false);
-      return {
-        status: "saved",
-        description: parsed.description,
-        amount: result.totalAmount,
-      };
-    } catch (error) {
-      throw error instanceof Error
-        ? error
-        : new Error("Couldn’t save this expense. Please try again.");
+    if (!user || !draftControl.draft)
+      throw new Error("Wait for your draft to load.");
+    if (!navigator.onLine) {
+      await draftControl.update({ parsed, receiptUrl, mode: "manual" });
+      return { status: "draft" };
     }
+    const frozen =
+      draftControl.draft.submission ||
+      (await prepareExpense(tripId, parsed, receiptUrl, currentUser));
+    const originalParsed = draftControl.draft.submission
+      ? draftControl.draft.parsed || parsed
+      : parsed;
+    const requestId = draftControl.draft.id;
+    // Persist the exact converted request before sending it. A retry uses this
+    // same payload, exchange rate and operation ID even after a reload.
+    await draftControl.update({
+      submission: frozen,
+      parsed: originalParsed,
+      receiptUrl,
+      mode: "manual",
+    });
+    let result;
+    try {
+      result = await commitPreparedExpense(frozen, requestId);
+    } catch (error) {
+      if (error instanceof ExpenseSaveError && error.safeToEdit)
+        await draftControl.update({ submission: undefined }).catch(() => {});
+      throw error;
+    }
+    rememberExpenseDefaults(user.id, tripId, originalParsed, memberNames);
+    await draftControl.clear().catch(() => undefined);
+    setUndoState({
+      type: "transaction",
+      itemId: result.changeId,
+      message: "Expense added",
+    });
+    setPendingParsed(null);
+    setPendingReceiptUrl(null);
+    setShowManualForm(false);
+    if (navigator.vibrate) navigator.vibrate(50);
+    return {
+      status: "saved",
+      description: result.description,
+      amount: result.totalAmount,
+    };
   };
 
   const handleUndo = async () => {
-    if (!undoState) return;
-
-    try {
-      if (undoState.type === "transaction") {
-        const response = await fetch(`/api/transactions/${undoState.itemId}`, {
-          method: "DELETE",
-        });
-
-        if (response.ok) {
-          setUndoState(null);
-          if (navigator.vibrate) {
-            navigator.vibrate(50);
-          }
-        }
-      } else if (undoState.type === "member") {
-        if (!tripId) return;
-        await removeMember(tripId, undoState.itemId);
-        await loadMembers(tripId);
-        setUndoState(null);
-        if (navigator.vibrate) {
-          navigator.vibrate(50);
-        }
-      }
-    } catch (error) {
-      console.error("Error undoing:", error);
-    }
+    if (!undoState || !tripId) return;
+    await undoExpense(
+      tripId,
+      undoState.itemId,
+      (undoRequests.current[undoState.itemId] ||= crypto.randomUUID()),
+    );
+    setUndoState(null);
+    setDashboardRevision((n) => n + 1);
   };
 
-  const handleStartTrip = async (tripName: string, userName: string) => {
+  const handleStartTrip = async (
+    tripName: string,
+    userName: string,
+    names: string[] = [],
+    requestId?: string,
+  ) => {
     if (!user) {
       alert("Authentication required");
       return;
@@ -301,6 +374,8 @@ function HomeContent() {
         userName,
         tripName,
         user.id,
+        names,
+        requestId,
       );
       rememberTrip(user.id, newTripId, userName);
       setTripId(newTripId);
@@ -308,9 +383,10 @@ function HomeContent() {
       await loadTripData(newTripId);
       await loadTrips(userName, user.id);
       setShowStartTripModal(false);
+      setShowShareModal(true);
     } catch (error) {
       console.error("Error creating trip:", error);
-      alert(error instanceof Error ? error.message : "Failed to create trip");
+      throw error;
     }
   };
 
@@ -403,6 +479,7 @@ function HomeContent() {
 
   const handleEditTransaction = async (
     data: Partial<Transaction> & {
+      operationId?: string;
       lineItems?: LineItem[];
       adjustments?: Array<{ memberId: string; amount: number }>;
     },
@@ -425,8 +502,11 @@ function HomeContent() {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${session.access_token}`,
+            "Idempotency-Key": data.operationId || crypto.randomUUID(),
           },
           body: JSON.stringify({
+            expectedVersion: editingTransaction.version || 1,
+            tripId,
             description: data.description,
             totalAmount: data.total_amount,
             payerId: data.payer_id,
@@ -443,6 +523,12 @@ function HomeContent() {
         throw new Error(result?.error || "Failed to update transaction");
       }
 
+      const result = await response.json();
+      setUndoState({
+        type: "transaction",
+        itemId: result.changeId,
+        message: "Expense updated",
+      });
       setEditingTransaction(null);
       setDashboardRevision((v) => v + 1);
     } catch (error) {
@@ -464,13 +550,25 @@ function HomeContent() {
       const response = await fetch(`/api/transactions/${transactionId}`, {
         method: "DELETE",
         headers: {
+          "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
+          "Idempotency-Key": (deleteRequests.current[transactionId] ||=
+            crypto.randomUUID()),
         },
+        body: JSON.stringify({
+          expectedVersion: editingTransaction?.version || 1,
+          tripId,
+        }),
       });
-
-      if (!response.ok) {
-        throw new Error("Failed to delete transaction");
-      }
+      const result = await response.json();
+      if (!response.ok)
+        throw new Error(result?.error || "Failed to delete transaction");
+      delete deleteRequests.current[transactionId];
+      setUndoState({
+        type: "transaction",
+        itemId: result.changeId,
+        message: "Expense deleted",
+      });
       setEditingTransaction(null);
       setDashboardRevision((v) => v + 1);
     } catch (error) {
@@ -485,6 +583,15 @@ function HomeContent() {
   ): Promise<ExpenseEntryResult> => {
     if (!tripId || !currentUser)
       throw new Error("Choose a trip before adding an expense.");
+    if (draftControl.draft?.submission)
+      return saveTransaction(
+        draftControl.draft.parsed!,
+        draftControl.draft.receiptUrl || null,
+      );
+    if (!navigator.onLine) {
+      await draftControl.update({ text, mode: "quick" });
+      return { status: "draft" };
+    }
     setIsProcessing(true);
     setEntryProgress({
       stage: "reading",
@@ -495,10 +602,28 @@ function HomeContent() {
     try {
       const result = imageFile
         ? await parseReceipt(imageFile, text)
-        : { parsed: await parseText(text), receiptUrl: null };
+        : {
+            parsed: await parseText(
+              text,
+              user
+                ? getExpenseDefaults(user.id, tripId, memberNames)
+                : undefined,
+            ),
+            receiptUrl: null,
+          };
       const parsed = result.parsed;
       if (!parsed)
         throw new Error("Describe the expense or attach a receipt first.");
+      const defaults = user
+        ? getExpenseDefaults(user.id, tripId, memberNames)
+        : null;
+      if (!parsed.payer_name)
+        parsed.payer_name = defaults?.payerName || currentUser;
+      await draftControl.update({
+        parsed,
+        receiptUrl: result.receiptUrl,
+        mode: "manual",
+      });
       setPendingParsed(parsed);
       setPendingReceiptUrl(result.receiptUrl);
       if (
@@ -528,19 +653,46 @@ function HomeContent() {
 
   if (showManualForm) {
     return (
-      <ManualTransactionForm
-        tripId={tripId}
-        initialData={pendingParsed || undefined}
-        memberNames={memberNames}
-        onSubmit={handleManualSubmit}
-        onCancel={() => {
-          setShowManualForm(false);
-          setPendingParsed(null);
-          setPendingReceiptUrl(null);
+      <ExpenseDraftContext.Provider value={draftControl}>
+        <ManualTransactionForm
+          tripId={tripId}
+          initialData={pendingParsed || undefined}
+          memberNames={memberNames}
+          onSubmit={handleManualSubmit}
+          onCancel={() => {
+            setShowManualForm(false);
+            setPendingParsed(null);
+            setPendingReceiptUrl(null);
+          }}
+        />
+      </ExpenseDraftContext.Provider>
+    );
+  }
+
+  if (joinContext && activeInvite && user)
+    return (
+      <JoinTripChoice
+        context={joinContext}
+        defaultName={
+          user.user_metadata?.display_name ||
+          user.user_metadata?.full_name ||
+          user.email?.split("@")[0] ||
+          ""
+        }
+        onJoin={async (memberId, name) => {
+          await joinTrip(activeInvite, name, user.id, memberId);
+          setJoinContext(null);
+          setLoadAttempt((n) => n + 1);
+        }}
+        onLeave={() => {
+          forgetInvite();
+          setJoinContext(null);
+          setActiveInvite(null);
+          router.replace("/");
+          setLoadAttempt((n) => n + 1);
         }}
       />
     );
-  }
 
   if (isLoadingTrip) {
     return (
@@ -589,155 +741,212 @@ function HomeContent() {
     );
 
   return (
-    <div>
-      {trip ? (
-        <>
-          <ConnectedDashboard
-            header={{
-              trip,
-              members,
-              trips,
-              onShare: () => setShowShareModal(true),
-              onSwitchTrip: handleSwitchTrip,
-              onCreateTrip: () => setShowStartTripModal(true),
-              onViewMembers: () => setShowMemberModal(true),
-              onDelete: () => {
-                setDeleteTripError(null);
-                setShowDeleteModal(true);
-              },
-              isCreator: user
-                ? members.find((m) => m.user_id === user.id)?.display_name ===
-                  trip.created_by
-                : false,
-            }}
-            key={`${tripId}:${dashboardRevision}`}
-            currentMemberId={
-              members.find((m) => m.user_id === user?.id)?.id || null
-            }
-            tripId={tripId}
-            members={members}
-            onSubmit={handleSubmit}
-            onManual={(draft) => {
-              setPendingParsed(
-                (current) =>
-                  current || {
-                    description: draft || "",
+    <ExpenseDraftContext.Provider value={draftControl}>
+      <div>
+        {draftControl.offline && (
+          <p role="status" className="mb-4 rounded-xl bg-[#fff4d8] p-4 text-sm">
+            You’re offline. Trip details may be out of date; drafts can still be
+            saved on this device.
+          </p>
+        )}
+        {trip && draftControl.draft?.parsed && !showManualForm && (
+          <div className="mb-4 rounded-xl bg-[#edf1e9] p-4 text-sm">
+            <p>You have an unfinished expense for {trip.name}.</p>
+            <button
+              className="mt-2 min-h-10 underline"
+              onClick={() => {
+                setPendingParsed(draftControl.draft?.parsed || null);
+                setPendingReceiptUrl(draftControl.draft?.receiptUrl || null);
+                setShowManualForm(true);
+              }}
+            >
+              Continue draft
+            </button>
+          </div>
+        )}
+        {trip ? (
+          <>
+            <ConnectedDashboard
+              header={{
+                trip,
+                members,
+                trips,
+                onShare: () => setShowShareModal(true),
+                onSwitchTrip: handleSwitchTrip,
+                onCreateTrip: () => {
+                  setNextTripNames([]);
+                  setShowStartTripModal(true);
+                },
+                onViewMembers: () => setShowMemberModal(true),
+                onDelete: () => {
+                  setDeleteTripError(null);
+                  setShowDeleteModal(true);
+                },
+                isCreator: user
+                  ? members.find((m) => m.user_id === user.id)?.display_name ===
+                    trip.created_by
+                  : false,
+              }}
+              key={`${tripId}:${dashboardRevision}`}
+              currentMemberId={
+                members.find((m) => m.user_id === user?.id)?.id || null
+              }
+              tripId={tripId}
+              members={members}
+              onSubmit={handleSubmit}
+              onManual={(text) => {
+                const defaults =
+                  user && tripId
+                    ? getExpenseDefaults(user.id, tripId, memberNames)
+                    : {
+                        currency: "USD",
+                        participants: [],
+                        payerName: undefined,
+                      };
+                setPendingParsed(
+                  draftControl.draft?.parsed || {
+                    description: text || "",
                     total_amount: 0,
                     split_type: "equal",
-                    payer_name: currentUser || undefined,
+                    currency: defaults.currency,
+                    payer_name: defaults.payerName || currentUser || undefined,
+                    participants: defaults.participants.length
+                      ? defaults.participants
+                      : undefined,
                   },
-              );
-              setShowManualForm(true);
-            }}
-            progress={entryProgress}
-            isProcessing={isProcessing || aiLoading}
-            onEdit={setEditingTransaction}
-            onDelete={handleDeleteTransaction}
-          />
-        </>
-      ) : (
-        <div className="min-h-[70vh] flex flex-col items-center justify-center px-6">
-          <div className="text-center mb-8">
-            <span className="icon-tile mx-auto mb-6 h-16 w-16">
-              <Icon name="travel" width="28" height="28" />
-            </span>
-            <p className="eyebrow mb-3">A fresh start</p>
-            <h1 className="page-title mb-4">Where are we off to?</h1>
-            <p className="muted max-w-sm mb-8">
-              Create a trip, bring your people, and keep every shared expense in
-              one place.
-            </p>
-            <button
-              onClick={() => setShowStartTripModal(true)}
-              className="btn-primary"
-            >
-              <Icon name="plus" width="17" /> Create your first trip
-            </button>
-            {trips.length > 0 && (
-              <div className="mt-8 text-left">
-                <p className="eyebrow mb-3">Or pick up where you left off</p>
-                {trips.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => handleSwitchTrip(t.id)}
-                    className="btn-secondary mb-2 w-full justify-between"
-                  >
-                    {t.name}
-                    <Icon name="arrow" width="16" />
-                  </button>
-                ))}
-              </div>
-            )}
+                );
+                setShowManualForm(true);
+              }}
+              progress={entryProgress}
+              isProcessing={isProcessing || aiLoading}
+              onEdit={setEditingTransaction}
+              onDelete={handleDeleteTransaction}
+            />
+          </>
+        ) : (
+          <div className="min-h-[70vh] flex flex-col items-center justify-center px-6">
+            <div className="text-center mb-8">
+              <span className="icon-tile mx-auto mb-6 h-16 w-16">
+                <Icon name="travel" width="28" height="28" />
+              </span>
+              <p className="eyebrow mb-3">A fresh start</p>
+              <h1 className="page-title mb-4">Where are we off to?</h1>
+              <p className="muted max-w-sm mb-8">
+                Create a trip, bring your people, and keep every shared expense
+                in one place.
+              </p>
+              <button
+                onClick={() => setShowStartTripModal(true)}
+                className="btn-primary"
+              >
+                <Icon name="plus" width="17" /> Create your first trip
+              </button>
+              {trips.length > 0 && (
+                <div className="mt-8 text-left">
+                  <p className="eyebrow mb-3">Or pick up where you left off</p>
+                  {trips.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => handleSwitchTrip(t.id)}
+                      className="btn-secondary mb-2 w-full justify-between"
+                    >
+                      {t.name}
+                      <Icon name="arrow" width="16" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      <StartTripModal
-        isOpen={showStartTripModal}
-        onClose={() => setShowStartTripModal(false)}
-        onSubmit={handleStartTrip}
-        defaultUserName={currentUser || ""}
-      />
-
-      {trip && (
-        <>
-          <ShareTripModal
-            isOpen={showShareModal}
-            onClose={() => setShowShareModal(false)}
-            inviteCode={trip.invite_code}
-            tripName={trip.name}
+        {trip && (
+          <ExpenseHistory
+            tripId={tripId}
+            refreshKey={`${draftControl.draft?.id}:${dashboardRevision}`}
+            onChange={() => setDashboardRevision((n) => n + 1)}
           />
-
-          <MemberListModal
-            key={trip.id}
-            isOpen={showMemberModal}
-            onClose={() => setShowMemberModal(false)}
-            members={members}
-            onRemoveMember={handleRemoveMember}
-            currentMemberId={
-              members.find((member) => member.user_id === user?.id)?.id
-            }
-            creatorName={trip.created_by}
-            canRemove={members.some(
-              (member) =>
-                member.user_id === user?.id &&
-                member.display_name === trip.created_by,
-            )}
-          />
-
-          <DeleteTripModal
-            isOpen={showDeleteModal}
-            onClose={() => setShowDeleteModal(false)}
-            onConfirm={handleDeleteTrip}
-            tripName={trip.name}
-            isDeleting={isDeleting}
-            error={deleteTripError}
-          />
-        </>
-      )}
-
-      {editingTransaction && (
-        <TransactionEditForm
-          transaction={editingTransaction as any}
-          memberNames={members.map((m) => ({ id: m.id, name: m.display_name }))}
-          tripId={tripId}
-          onDelete={() => handleDeleteTransaction(editingTransaction.id)}
-          onSubmit={handleEditTransaction}
-          onCancel={() => setEditingTransaction(null)}
+        )}
+        <StartTripModal
+          isOpen={showStartTripModal}
+          onClose={() => setShowStartTripModal(false)}
+          onSubmit={handleStartTrip}
+          defaultUserName={currentUser || ""}
+          defaultNames={nextTripNames}
         />
-      )}
 
-      {undoState && (
-        <UndoToast
-          show={true}
-          type={undoState.type}
-          message={undoState.message}
-          onUndo={handleUndo}
-          onDismiss={() => setUndoState(null)}
-          itemId={undoState.itemId}
-        />
-      )}
-    </div>
+        {trip && (
+          <>
+            <ShareTripModal
+              isOpen={showShareModal}
+              onClose={() => setShowShareModal(false)}
+              inviteCode={trip.invite_code}
+              tripName={trip.name}
+            />
+
+            <MemberListModal
+              key={trip.id}
+              isOpen={showMemberModal}
+              onClose={() => setShowMemberModal(false)}
+              members={members}
+              onRemoveMember={handleRemoveMember}
+              onAddNames={async (names) => {
+                if (!tripId) return;
+                await addTripNames(tripId, names);
+                await loadMembers(tripId);
+                setDashboardRevision((n) => n + 1);
+              }}
+              currentMemberId={
+                members.find((member) => member.user_id === user?.id)?.id
+              }
+              creatorName={trip.created_by}
+              canRemove={members.some(
+                (member) =>
+                  member.user_id === user?.id &&
+                  member.display_name === trip.created_by,
+              )}
+            />
+
+            <DeleteTripModal
+              isOpen={showDeleteModal}
+              onClose={() => setShowDeleteModal(false)}
+              onConfirm={handleDeleteTrip}
+              tripName={trip.name}
+              isDeleting={isDeleting}
+              error={deleteTripError}
+            />
+          </>
+        )}
+
+        {editingTransaction && (
+          <TransactionEditForm
+            transaction={editingTransaction as any}
+            memberNames={members.map((m) => ({
+              id: m.id,
+              name: m.display_name,
+            }))}
+            tripId={tripId}
+            onDelete={() => handleDeleteTransaction(editingTransaction.id)}
+            onSubmit={handleEditTransaction}
+            onCancel={() => {
+              setEditingTransaction(null);
+              setDashboardRevision((n) => n + 1);
+            }}
+          />
+        )}
+
+        {undoState && (
+          <UndoToast
+            show={true}
+            type={undoState.type}
+            message={undoState.message}
+            onUndo={handleUndo}
+            onDismiss={() => setUndoState(null)}
+            itemId={undoState.itemId}
+          />
+        )}
+      </div>
+    </ExpenseDraftContext.Provider>
   );
 }
 

@@ -4,4 +4,5 @@ export type ExpenseEntryProgress = {
 };
 export type ExpenseEntryResult =
   | { status: "saved"; description: string; amount: number }
-  | { status: "review" };
+  | { status: "review" }
+  | { status: "draft" };

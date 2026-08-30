@@ -1,83 +1,56 @@
 import { supabase } from "../supabase/client";
 import { normalizeInvite } from "../auth/preferences";
 
-// Strict Mode, token refreshes, and rapid navigation must not insert twice.
+export interface InviteContext {
+  tripId: string;
+  tripName: string;
+  memberId: string | null;
+  members: { id: string; name: string }[];
+}
+export async function getInviteContext(
+  invitation: string,
+): Promise<InviteContext> {
+  const code = normalizeInvite(invitation);
+  if (!code)
+    throw new Error(
+      "This invite is incomplete. Ask your friend for the link again.",
+    );
+  const { data, error } = await (supabase as any).rpc("invite_context", {
+    invitation: code,
+  });
+  if (error || !data)
+    throw new Error(
+      error?.code === "PGRST202"
+        ? "Joining is being updated. Please try again shortly."
+        : error?.message || "We couldn’t open this invite. Try again.",
+    );
+  return data;
+}
 const joining = new Map<string, Promise<string>>();
 export function joinTrip(
-  inviteCode: string,
+  invitation: string,
   displayName: string,
   userId: string,
+  selectedMember: string | null = null,
 ): Promise<string> {
-  const code = normalizeInvite(inviteCode);
+  const code = normalizeInvite(invitation);
   if (!code || !userId)
-    return Promise.reject(
-      new Error("Sign in with a valid trip invite to continue."),
-    );
+    return Promise.reject(new Error("Sign in with a valid trip invitation."));
   const key = `${userId}:${code}`;
   const existing = joining.get(key);
   if (existing) return existing;
-  const pending = joinAuthenticatedTrip(code, displayName, userId).finally(() =>
-    joining.delete(key),
-  );
+  const pending = (async () => {
+    const { data, error } = await (supabase as any).rpc("join_invited_trip", {
+      invitation: code,
+      selected_member: selectedMember,
+      new_name: selectedMember ? null : displayName.trim(),
+    });
+    if (error || !data)
+      throw new Error(
+        error?.message || "Couldn’t join. Your invitation is still saved.",
+      );
+    return data as string;
+  })().finally(() => joining.delete(key));
   joining.set(key, pending);
   return pending;
-}
-async function joinAuthenticatedTrip(
-  code: string,
-  displayName: string,
-  userId: string,
-): Promise<string> {
-  const { data: trip, error: tripError } = await supabase
-    .from("trips")
-    .select("id")
-    .eq("invite_code", code)
-    .maybeSingle();
-  if (tripError)
-    throw new Error(
-      "We couldn’t check this invite. Check your connection and try again.",
-    );
-  if (!trip)
-    throw new Error(
-      "This trip invite is no longer available. Ask your friend for a fresh link.",
-    );
-  const tripId = (trip as { id: string }).id;
-  const findMember = async () => {
-    const { data, error } = await supabase
-      .from("trip_members")
-      .select("id")
-      .eq("trip_id", tripId)
-      .eq("user_id", userId)
-      .limit(1)
-      .maybeSingle();
-    if (error)
-      throw new Error("We couldn’t check your membership. Please try again.");
-    return data;
-  };
-  if (await findMember()) return tripId;
-  const { data: members, error } = await supabase
-    .from("trip_members")
-    .select("display_name")
-    .eq("trip_id", tripId);
-  if (error)
-    throw new Error("We couldn’t load the trip members. Please try again.");
-  const names = new Set(
-    ((members as Array<{ display_name: string }>) || []).map(
-      (m) => m.display_name,
-    ),
-  );
-  const baseName = displayName.trim().slice(0, 80) || "Traveler";
-  let name = baseName;
-  let suffix = 2;
-  while (names.has(name)) name = `${baseName} (${suffix++})`;
-  const { error: memberError } = await (
-    supabase.from("trip_members") as any
-  ).insert({ trip_id: tripId, display_name: name, user_id: userId });
-  if (memberError) {
-    // Another tab may have completed this same invitation already.
-    if (memberError.code === "23505" && (await findMember())) return tripId;
-    throw new Error(
-      "We couldn’t join the trip. Please try again; your invite is saved.",
-    );
-  }
-  return tripId;
 }

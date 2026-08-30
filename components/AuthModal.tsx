@@ -14,12 +14,14 @@ export default function AuthModal({
   inviteCode,
   tripName,
   notice,
+  focusEmail = false,
 }: {
   isOpen: boolean;
   onClose?: () => void;
   inviteCode?: string | null;
   tripName?: string | null;
   notice?: string;
+  focusEmail?: boolean;
 }) {
   const { signIn } = useAuth();
   const [email, setEmail] = useState("");
@@ -31,9 +33,9 @@ export default function AuthModal({
   useEffect(() => {
     if (isOpen && !success) {
       setEmail((current) => current || rememberedEmail());
-      emailInput.current?.focus({ preventScroll: true });
+      if (focusEmail) emailInput.current?.focus({ preventScroll: true });
     }
-  }, [isOpen, success]);
+  }, [isOpen, success, focusEmail]);
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim() || submitting || openingGoogle) return;

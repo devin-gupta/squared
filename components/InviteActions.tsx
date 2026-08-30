@@ -48,6 +48,7 @@ export default function InviteActions({
         </>
       )}
       <AuthModal
+        focusEmail
         isOpen={emailOpen}
         onClose={() => setEmailOpen(false)}
         inviteCode={inviteCode}

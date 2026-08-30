@@ -1,296 +1,97 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import { Database } from "@/lib/supabase/types";
 import { CATEGORIES } from "@/lib/categories";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabasePublishableKey =
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
-
+import {
+  expenseClient,
+  operationId,
+  mutationError,
+  ExpenseRequestError,
+} from "@/lib/transactions/server";
+async function mutate(
+  request: NextRequest,
+  params: Promise<{ id: string }>,
+  command: "update" | "delete",
+) {
+  try {
+    const client = await expenseClient(request);
+    const op = operationId(request);
+    const { id } = await params;
+    const body = await request.json();
+    if (!Number.isInteger(body.expectedVersion) || body.expectedVersion < 1)
+      throw new ExpenseRequestError(
+        "Reopen the expense to load its latest version.",
+        409,
+      );
+    if (
+      body.category !== undefined &&
+      !CATEGORIES.some(([code]) => code === body.category)
+    )
+      throw new ExpenseRequestError("Choose a supported category.", 400);
+    const { data: tx, error: readError } = await client
+      .from("transactions")
+      .select("trip_id")
+      .eq("id", id)
+      .maybeSingle();
+    // A retry after deletion needs the original trip ID, but the RPC still checks membership and operation identity.
+    const tripId = tx?.trip_id || body.tripId;
+    if (readError || !tripId)
+      throw new ExpenseRequestError(
+        "This expense is unavailable. Reopen the trip.",
+        404,
+      );
+    const payload: Record<string, unknown> = {};
+    if (command === "update") {
+      for (const [from, to] of [
+        ["description", "description"],
+        ["totalAmount", "total_amount"],
+        ["payerId", "payer_id"],
+        ["splitType", "split_type"],
+        ["lineItems", "line_items"],
+        ["category", "category"],
+      ])
+        if (body[from] !== undefined) payload[to] = body[from];
+      if (body.adjustments !== undefined) {
+        if (!Array.isArray(body.adjustments))
+          throw new ExpenseRequestError("Check the custom shares.", 400);
+        payload.shares = body.adjustments.map(
+          (s: { memberId: string; amount: number }) => ({
+            member_id: s.memberId,
+            amount: s.amount,
+          }),
+        );
+      }
+    }
+    const { data, error } = await client.rpc("commit_expense", {
+      operation_id: op,
+      command,
+      selected_trip: tripId,
+      selected_expense: id,
+      payload,
+      expected_version: body.expectedVersion,
+      undo_change: null,
+    });
+    if (error) throw mutationError(error);
+    return NextResponse.json({ success: true, ...data });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error:
+          error instanceof ExpenseRequestError
+            ? error.message
+            : "Couldn’t process this change. Your expense has not been confirmed as saved.",
+      },
+      { status: error instanceof ExpenseRequestError ? error.status : 400 },
+    );
+  }
+}
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  try {
-    const body = await request.json();
-    const {
-      description,
-      totalAmount,
-      payerId,
-      splitType,
-      lineItems,
-      adjustments,
-      category,
-    } = body;
-
-    const resolvedParams = await Promise.resolve(params);
-    const transactionId = resolvedParams.id;
-
-    // Get authenticated user
-    const authHeader = request.headers.get("authorization");
-    if (!authHeader) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 },
-      );
-    }
-
-    const token = authHeader.replace("Bearer ", "");
-
-    // Verify token and get user
-    const tempClient = createClient<Database>(
-      supabaseUrl,
-      supabasePublishableKey,
-    );
-    const {
-      data: { user },
-      error: authError,
-    } = await tempClient.auth.getUser(token);
-
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: "Invalid authentication" },
-        { status: 401 },
-      );
-    }
-
-    // Create authenticated Supabase client with session
-    const supabase = createClient<Database>(
-      supabaseUrl,
-      supabasePublishableKey,
-      {
-        auth: {
-          persistSession: false,
-          autoRefreshToken: false,
-        },
-        global: {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      },
-    );
-
-    if (
-      category !== undefined &&
-      !CATEGORIES.some(([code]) => code === category)
-    ) {
-      return NextResponse.json(
-        { error: "Choose a supported category." },
-        { status: 400 },
-      );
-    }
-
-    // Get current transaction to check split_type
-    const { data: currentTransaction, error: fetchError } = await supabase
-      .from("transactions")
-      .select("*")
-      .eq("id", transactionId)
-      .maybeSingle();
-
-    if (fetchError) {
-      throw new Error(`Failed to fetch transaction: ${fetchError.message}`);
-    }
-
-    if (!currentTransaction) {
-      throw new Error("Transaction not found");
-    }
-
-    const currentSplitType = (
-      currentTransaction as { split_type?: "equal" | "custom" }
-    ).split_type;
-
-    // Update transaction
-    const updateData: any = {
-      updated_at: new Date().toISOString(),
-    };
-
-    if (description !== undefined) updateData.description = description;
-    if (totalAmount !== undefined) updateData.total_amount = totalAmount;
-    // Editing happens in USD. Never retain an original-currency reference that
-    // no longer matches the ledger total; other edits preserve the locked rate.
-    const original = currentTransaction as {
-      total_amount?: number;
-      currency_conversion?: unknown;
-    };
-    if (
-      original.currency_conversion &&
-      totalAmount !== undefined &&
-      Number(totalAmount) !== Number(original.total_amount)
-    ) {
-      updateData.currency_conversion = null;
-    }
-    if (payerId !== undefined) updateData.payer_id = payerId;
-    if (splitType !== undefined) updateData.split_type = splitType;
-    if (lineItems !== undefined) updateData.line_items = lineItems;
-    if (category !== undefined) updateData.category = category;
-
-    // Update transaction
-    const updateResult: {
-      data: Database["public"]["Tables"]["transactions"]["Row"] | null;
-      error: { code?: string } | null;
-    } = await (supabase.from("transactions") as any)
-      .update(updateData)
-      .eq("id", transactionId)
-      .select("*")
-      .single();
-
-    if (updateResult.error || !updateResult.data) {
-      if (
-        category !== undefined &&
-        ["42703", "PGRST204"].includes(updateResult.error?.code || "")
-      ) {
-        return NextResponse.json(
-          {
-            error:
-              "Category storage is not ready. Ask the app owner to apply the category migration; no changes were saved.",
-          },
-          { status: 503 },
-        );
-      }
-      throw new Error(
-        "Couldn’t save this expense. Check your trip access and try again.",
-      );
-    }
-
-    // Confirm the UPDATE returned a row; a subsequent SELECT alone cannot prove
-    // that RLS allowed the edit. Category-only updates never touch adjustments.
-    const transaction = updateResult.data;
-
-    const finalSplitType =
-      splitType !== undefined ? splitType : currentSplitType;
-
-    // Update adjustments based on split type
-    if (finalSplitType === "custom" && adjustments !== undefined) {
-      // Delete existing adjustments
-      await supabase
-        .from("transaction_adjustments")
-        .delete()
-        .eq("transaction_id", transactionId);
-
-      // Insert new adjustments
-      if (adjustments.length > 0) {
-        const adjustmentInserts = adjustments.map((adj: any) => ({
-          transaction_id: transactionId,
-          member_id: adj.memberId,
-          amount: adj.amount,
-        }));
-
-        const { error: adjError } = await supabase
-          .from("transaction_adjustments")
-          .insert(adjustmentInserts as any);
-
-        if (adjError) {
-          console.error("Failed to update adjustments:", adjError);
-        }
-      }
-    } else if (
-      finalSplitType === "equal" &&
-      (splitType !== undefined || adjustments !== undefined)
-    ) {
-      // If changing to equal split or adjustments were explicitly set to empty, delete all adjustments
-      await supabase
-        .from("transaction_adjustments")
-        .delete()
-        .eq("transaction_id", transactionId);
-    }
-
-    return NextResponse.json({ transaction });
-  } catch (error) {
-    console.error("Error updating transaction:", error);
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to update transaction",
-      },
-      { status: 500 },
-    );
-  }
+  return mutate(request, params, "update");
 }
-
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  try {
-    const resolvedParams = await Promise.resolve(params);
-    const transactionId = resolvedParams.id;
-
-    // Get authenticated user
-    const authHeader = request.headers.get("authorization");
-    if (!authHeader) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 },
-      );
-    }
-
-    const token = authHeader.replace("Bearer ", "");
-
-    // Verify token and get user
-    const tempClient = createClient<Database>(
-      supabaseUrl,
-      supabasePublishableKey,
-    );
-    const {
-      data: { user },
-      error: authError,
-    } = await tempClient.auth.getUser(token);
-
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: "Invalid authentication" },
-        { status: 401 },
-      );
-    }
-
-    // Create authenticated Supabase client with session
-    const supabase = createClient<Database>(
-      supabaseUrl,
-      supabasePublishableKey,
-      {
-        auth: {
-          persistSession: false,
-          autoRefreshToken: false,
-        },
-        global: {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      },
-    );
-
-    // Set the session explicitly
-    await supabase.auth.setSession({
-      access_token: token,
-      refresh_token: "", // Not needed for server-side
-    } as any);
-
-    const deleteResult = await supabase
-      .from("transactions")
-      .delete()
-      .eq("id", transactionId);
-
-    if (deleteResult.error) {
-      throw new Error(
-        `Failed to delete transaction: ${deleteResult.error.message}`,
-      );
-    }
-
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error("Error deleting transaction:", error);
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to delete transaction",
-      },
-      { status: 500 },
-    );
-  }
+  return mutate(request, params, "delete");
 }

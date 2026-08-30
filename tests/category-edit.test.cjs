@@ -90,121 +90,122 @@ test("unchanged categories do not write; real split changes and receipt category
 function fixture(options = {}) {
   const calls = [];
   let row = structuredClone(base);
-  const route = moduleAt(
-    "app/api/transactions/[id]/route.ts",
-    {
-      "next/server": {
-        NextResponse: { json: (body, init) => Response.json(body, init) },
-      },
-      "@/lib/categories": categories,
-      "@supabase/supabase-js": {
-        createClient: (url, key, config) =>
-          createClient(url, key, {
-            ...config,
-            global: {
-              ...config?.global,
-              fetch: async (input, init) => {
-                const req = new Request(input, init),
-                  url = new URL(req.url);
-                calls.push({
-                  path: url.pathname,
-                  method: req.method,
-                  body: req.method === "PATCH" ? await req.json() : undefined,
-                  auth: req.headers.get("authorization"),
-                });
-                if (url.pathname === "/auth/v1/user")
-                  return options.invalidAuth
-                    ? Response.json({ message: "Expired" }, { status: 401 })
-                    : Response.json({ id: "test-user" });
-                assert.equal(
-                  req.headers.get("authorization"),
-                  "Bearer caller-token",
-                );
-                assert.equal(
-                  url.pathname,
-                  "/rest/v1/transactions",
-                  "No share delete/insert is permitted for a category edit",
-                );
-                if (req.method === "GET")
-                  return Response.json(options.nonmember ? [] : [row]);
-                assert.equal(req.method, "PATCH");
-                assert.equal(url.searchParams.get("id"), "eq." + id);
-                if (options.missingSchema)
-                  return Response.json(
-                    { code: "PGRST204", message: "column absent" },
-                    { status: 400 },
-                  );
-                if (options.writeDenied)
-                  return Response.json(
-                    { code: "PGRST116", message: "No updated rows" },
-                    { status: 406 },
-                  );
-                row = { ...row, ...calls.at(-1).body };
-                return Response.json(row);
-              },
-            },
-          }),
-      },
+  const sdk = {
+    createClient: (url, key, config) =>
+      createClient(url, key, {
+        ...config,
+        global: {
+          ...config?.global,
+          fetch: async (input, init) => {
+            const req = new Request(input, init),
+              u = new URL(req.url);
+            const body = req.method === "POST" ? await req.json() : undefined;
+            calls.push({ path: u.pathname, method: req.method, body });
+            if (u.pathname === "/auth/v1/user")
+              return options.invalidAuth
+                ? Response.json({ message: "Expired" }, { status: 401 })
+                : Response.json({ id: "test-user" });
+            assert.equal(
+              req.headers.get("authorization"),
+              "Bearer caller-token",
+            );
+            if (req.method === "GET")
+              return Response.json(options.nonmember ? [] : [row]);
+            assert.equal(u.pathname, "/rest/v1/rpc/commit_expense");
+            if (options.missingSchema)
+              return Response.json({ code: "PGRST202" }, { status: 404 });
+            if (options.writeDenied)
+              return Response.json(
+                { code: "42501", message: "Join this trip" },
+                { status: 403 },
+              );
+            if (options.conflict)
+              return Response.json(
+                { code: "40001", message: "This expense changed" },
+                { status: 400 },
+              );
+            row = { ...row, ...body.payload };
+            return Response.json({
+              transactionId: row.id,
+              changeId: body.operation_id,
+              version: 2,
+            });
+          },
+        },
+      }),
+  };
+  const server = moduleAt("lib/transactions/server.ts", {
+    "server-only": {},
+    "@supabase/supabase-js": sdk,
+  });
+  const route = moduleAt("app/api/transactions/[id]/route.ts", {
+    "next/server": {
+      NextResponse: { json: (body, init) => Response.json(body, init) },
     },
-    { console: { error() {} } },
-  );
+    "@/lib/categories": categories,
+    "@/lib/transactions/server": server,
+  });
   return {
     calls,
     getRow: () => row,
-    put: (body, auth = "Bearer caller-token") =>
+    put: (body, auth = "Bearer caller-token", op = crypto.randomUUID()) =>
       route.PUT(
         new Request("https://squared.test/api/transactions/" + id, {
           method: "PUT",
           headers: {
             "content-type": "application/json",
+            "idempotency-key": op,
             ...(auth ? { authorization: auth } : {}),
           },
-          body: JSON.stringify(body),
+          body: JSON.stringify({ expectedVersion: 1, ...body }),
         }),
         { params: Promise.resolve({ id }) },
       ),
   };
 }
-test("authenticated category PUT persists and reloads without touching amount, shares or currency evidence", async () => {
-  const f = fixture();
-  const response = await f.put({ category: "car_rental" });
-  assert.equal(response.status, 200);
-  assert.equal((await response.json()).transaction.category, "car_rental");
-  const writes = f.calls.filter((c) => c.method === "PATCH");
+test("authenticated category PUT sends an atomic versioned operation without rewriting amount, shares or currency evidence", async () => {
+  const f = fixture(),
+    op = crypto.randomUUID();
+  assert.equal(
+    (await f.put({ category: "car_rental" }, undefined, op)).status,
+    200,
+  );
+  const writes = f.calls.filter((c) => c.path.endsWith("/commit_expense"));
   assert.equal(writes.length, 1);
-  assert.deepEqual(Object.keys(writes[0].body).sort(), [
-    "category",
-    "updated_at",
-  ]);
-  const row = f.getRow();
-  assert.equal(row.total_amount, base.total_amount);
-  assert.deepEqual(row.adjustments, base.adjustments);
-  assert.deepEqual(row.currency_conversion, base.currency_conversion);
-  assert.equal(row.line_items, null);
+  assert.deepEqual(writes[0].body.payload, { category: "car_rental" });
+  assert.equal(writes[0].body.operation_id, op);
+  assert.equal(writes[0].body.expected_version, 1);
+  assert.equal(f.getRow().category, "car_rental");
+  assert.equal(f.getRow().total_amount, base.total_amount);
+  assert.deepEqual(f.getRow().adjustments, base.adjustments);
+  assert.deepEqual(f.getRow().currency_conversion, base.currency_conversion);
 });
-test("category edits reject bad input, expired auth and inaccessible transactions without writes", async () => {
-  for (const [options, body, auth, status] of [
-    [{}, { category: "made_up" }, undefined, 400],
-    [{}, { category: "car_rental" }, "", 401],
-    [{ invalidAuth: true }, { category: "car_rental" }, undefined, 401],
-    [{ nonmember: true }, { category: "car_rental" }, undefined, 500],
+test("invalid categories, expired auth, inaccessible expenses and missing version/key cannot issue writes", async () => {
+  for (const [options, body, auth, op, status] of [
+    [{}, { category: "bad" }, undefined, undefined, 400],
+    [{}, { category: "car_rental" }, "", undefined, 401],
+    [{ invalidAuth: true }, {}, undefined, undefined, 401],
+    [{ nonmember: true }, {}, undefined, undefined, 404],
+    [{}, { expectedVersion: null }, undefined, undefined, 409],
+    [{}, {}, undefined, "invalid", 400],
   ]) {
     const f = fixture(options);
-    assert.equal((await f.put(body, auth)).status, status);
-    assert.equal(f.calls.filter((c) => c.method === "PATCH").length, 0);
+    assert.equal((await f.put(body, auth, op)).status, status);
+    assert.equal(
+      f.calls.filter((c) => c.path.endsWith("/commit_expense")).length,
+      0,
+    );
   }
 });
-test("missing migration and RLS-blocked updates cannot report a successful recategorization", async () => {
+test("missing migration, access rejection and version conflicts preserve the expense", async () => {
   for (const [options, status] of [
     [{ missingSchema: true }, 503],
-    [{ writeDenied: true }, 500],
+    [{ writeDenied: true }, 403],
+    [{ conflict: true }, 409],
   ]) {
     const f = fixture(options);
-    const response = await f.put({ category: "car_rental" });
-    assert.equal(response.status, status);
+    assert.equal((await f.put({ category: "car_rental" })).status, status);
     assert.equal(f.getRow().category, null);
-    if (options.missingSchema)
-      assert.match((await response.json()).error, /migration/);
   }
 });
 test("statistics count an expense-level category once while receipt item categories remain primary", async () => {

@@ -112,90 +112,69 @@ function joinFixture({
   invalid = false,
   collision = false,
 } = {}) {
-  const db = {
-    inserts: [],
-    members: member
-      ? [{ id: "existing", user_id: "me", display_name: "Sam" }]
-      : collision
-        ? [{ id: "other", user_id: "other-user", display_name: "Sam" }]
-        : [],
-  };
+  const db = { calls: [], inserts: [] };
   const client = {
-    from: (table) => {
-      const filters = {};
-      let payload;
-      const query = {
-        select: () => query,
-        eq: (key, value) => {
-          filters[key] = value;
-          return query;
-        },
-        limit: () => query,
-        maybeSingle: () => run(true),
-        insert: (value) => {
-          payload = value;
-          return run(false);
-        },
-        then: (resolve, reject) => run(false).then(resolve, reject),
-      };
-      async function run(single) {
-        await Promise.resolve();
-        if (table === "trips")
-          return { data: invalid ? null : { id: "trip" }, error: null };
-        if (readError)
-          return { data: null, error: { message: "connection failed" } };
-        if (payload) {
-          db.inserts.push(payload);
-          db.members.push({ id: "new", ...payload });
-          return { error: null };
-        }
-        const members = db.members.filter(
-          (m) => !filters.user_id || m.user_id === filters.user_id,
-        );
-        return { data: single ? members[0] || null : members, error: null };
-      }
-      return query;
+    rpc: async (name, args) => {
+      db.calls.push({ name, args });
+      await Promise.resolve();
+      if (readError || invalid)
+        return { error: { message: "Invite unavailable" } };
+      if (name === "invite_context")
+        return {
+          data: {
+            tripId: "trip",
+            tripName: "Iceland",
+            memberId: member ? "existing" : null,
+            members: [{ id: "unclaimed", name: "Sam" }],
+          },
+        };
+      if (collision)
+        return { error: { message: "That name has already been claimed" } };
+      if (!member) db.inserts.push(args);
+      return { data: "trip" };
     },
   };
   const { api } = preferences();
-  return {
-    db,
-    join: moduleAt("lib/trips/join.ts", {
-      "../supabase/client": { supabase: client },
-      "../auth/preferences": api,
-    }).joinTrip,
-  };
+  const mod = moduleAt("lib/trips/join.ts", {
+    "../supabase/client": { supabase: client },
+    "../auth/preferences": api,
+  });
+  return { db, join: mod.joinTrip, context: mod.getInviteContext };
 }
-
-test("concurrent invite joins make only one authenticated membership", async () => {
+test("concurrent explicit joins make one RPC and retain the selected placeholder identity", async () => {
   const { db, join } = joinFixture();
   const ids = await Promise.all([
-    join("INVITEAA", "Sam", "me"),
-    join("inviteaa", "Sam", "me"),
+    join("INVITEAA", "Sam", "me", "unclaimed"),
+    join("inviteaa", "Sam", "me", "unclaimed"),
   ]);
   assert.deepEqual(ids, ["trip", "trip"]);
-  assert.equal(db.inserts.length, 1);
-  assert.equal(db.inserts[0].user_id, "me");
+  assert.equal(db.calls.length, 1);
+  assert.equal(db.inserts[0].selected_member, "unclaimed");
+  assert.equal(db.inserts[0].new_name, null);
 });
-
-test("existing membership is reused, and duplicate names never claim someone else’s identity", async () => {
-  let fixture = joinFixture({ member: true });
-  assert.equal(await fixture.join("INVITEAA", "Sam", "me"), "trip");
-  assert.equal(fixture.db.inserts.length, 0);
-  fixture = joinFixture({ collision: true });
-  await fixture.join("INVITEAA", "Sam", "me");
-  assert.equal(fixture.db.inserts[0].display_name, "Sam (2)");
-  assert.equal(fixture.db.members[0].user_id, "other-user");
+test("invite context is read-only and existing members bypass name selection", async () => {
+  const f = joinFixture({ member: true });
+  assert.equal((await f.context("INVITEAA")).memberId, "existing");
+  assert.equal(f.db.inserts.length, 0);
+  const collision = joinFixture({ collision: true });
+  await assert.rejects(
+    collision.join("INVITEAA", "Sam", "me", "claimed"),
+    /already been claimed/,
+  );
+  assert.equal(collision.db.inserts.length, 0);
 });
-
-test("membership read failures and invalid invites cannot trigger member writes", async () => {
+test("new names are explicit and invalid invites or failed RPCs never trigger fallback member writes", async () => {
+  const f = joinFixture();
+  await f.join("INVITEAA", "New person", "me");
+  assert.equal(f.db.inserts[0].new_name, "New person");
+  assert.equal(f.db.inserts[0].selected_member, null);
   for (const options of [{ readError: true }, { invalid: true }]) {
-    const { db, join } = joinFixture(options);
-    await assert.rejects(join("INVITEAA", "Sam", "me"));
-    assert.equal(db.inserts.length, 0);
+    const f = joinFixture(options);
+    await assert.rejects(f.join("INVITEAA", "Sam", "me"));
+    assert.equal(f.db.inserts.length, 0);
   }
-  const { db, join } = joinFixture();
-  await assert.rejects(join("INVITEAA", "Sam", ""));
-  await assert.rejects(join("https://bad.example", "Sam", "me"));
-  assert.equal(db.inserts.length, 0);
+  const bad = joinFixture();
+  await assert.rejects(bad.join("INVITEAA", "Sam", ""));
+  await assert.rejects(bad.join("https://bad.example", "Sam", "me"));
+  assert.equal(bad.db.calls.length, 0);
 });

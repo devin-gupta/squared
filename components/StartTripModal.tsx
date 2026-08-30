@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Modal from "./Modal";
 import Icon from "./Icon";
 
@@ -9,12 +9,21 @@ export default function StartTripModal({
   onClose,
   onSubmit,
   defaultUserName = "",
+  defaultNames = [],
 }: {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (tripName: string, userName: string) => Promise<void>;
+  onSubmit: (
+    tripName: string,
+    userName: string,
+    names: string[],
+    requestId: string,
+  ) => Promise<void>;
   defaultUserName?: string;
+  defaultNames?: string[];
 }) {
+  const requestId = useRef(crypto.randomUUID());
+  const [names, setNames] = useState("");
   const [tripName, setTripName] = useState("");
   const [userName, setUserName] = useState(defaultUserName);
   const [submitting, setSubmitting] = useState(false);
@@ -23,6 +32,8 @@ export default function StartTripModal({
     if (isOpen) {
       setUserName(defaultUserName);
       setTripName("");
+      setNames(defaultNames.join("\n"));
+      requestId.current = crypto.randomUUID();
       setError(null);
     }
   }, [isOpen, defaultUserName]);
@@ -32,7 +43,15 @@ export default function StartTripModal({
     setSubmitting(true);
     setError(null);
     try {
-      await onSubmit(tripName.trim(), userName.trim());
+      await onSubmit(
+        tripName.trim(),
+        userName.trim(),
+        names
+          .split(/[\n,]/)
+          .map((s) => s.trim())
+          .filter(Boolean),
+        requestId.current,
+      );
     } catch (err) {
       setError(
         err instanceof Error
@@ -46,9 +65,11 @@ export default function StartTripModal({
   return (
     <Modal
       open={isOpen}
-      onClose={onClose}
+      onClose={() => {
+        if (!submitting) onClose();
+      }}
       title="Something to look forward to."
-      description="Give your trip a name. You can invite the crew next."
+      description="Add your friends by name now. Everyone can join with one shared link."
     >
       <form onSubmit={submit} className="space-y-5">
         <div>
@@ -57,6 +78,7 @@ export default function StartTripModal({
           </label>
           <input
             id="tripName"
+            maxLength={120}
             value={tripName}
             onChange={(e) => setTripName(e.target.value)}
             placeholder="A weekend in the mountains"
@@ -71,6 +93,7 @@ export default function StartTripModal({
           </label>
           <input
             id="userName"
+            maxLength={80}
             value={userName}
             onChange={(e) => setUserName(e.target.value)}
             autoComplete="given-name"
@@ -78,6 +101,25 @@ export default function StartTripModal({
             required
             className="w-full"
           />
+        </div>
+        <div>
+          <label
+            htmlFor="trip-people"
+            className="mb-2 block text-sm font-medium"
+          >
+            Friends’ names (optional)
+          </label>
+          <textarea
+            id="trip-people"
+            value={names}
+            onChange={(e) => setNames(e.target.value)}
+            placeholder="Alex, Sam, Priya"
+            className="w-full min-h-24"
+          />
+          <p className="muted mt-2 text-xs">
+            Separate names with commas or new lines. No emails needed. Friends
+            select their own name when they join.
+          </p>
         </div>
         {error && (
           <p role="alert" className="text-sm text-red-700">

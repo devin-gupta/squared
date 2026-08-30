@@ -1,7 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRealtimeTransactions } from "@/hooks/useRealtimeTransactions";
+import ExpenseHistory from "./ExpenseHistory";
+import UndoToast from "./UndoToast";
+import { undoExpense } from "@/lib/transactions/history";
 import ExpenseLedger from "./ExpenseLedger";
 import TransactionEditForm from "./TransactionEditForm";
 import { Transaction, LineItem } from "@/types/transaction";
@@ -18,6 +21,11 @@ interface LiveFeedProps {
 export default function LiveFeed({ tripId }: LiveFeedProps) {
   const { transactions, loading, error, refetch, removeTransaction } =
     useRealtimeTransactions(tripId);
+  const [undo, setUndo] = useState<{ id: string; message: string } | null>(
+    null,
+  );
+  const undoRequests = useRef<Record<string, string>>({});
+  const deleteRequests = useRef<Record<string, string>>({});
   const [editingTransaction, setEditingTransaction] =
     useState<Transaction | null>(null);
   const [memberNames, setMemberNames] = useState<
@@ -45,6 +53,7 @@ export default function LiveFeed({ tripId }: LiveFeedProps) {
 
   const handleEdit = async (
     data: Partial<Transaction> & {
+      operationId?: string;
       lineItems?: LineItem[];
       adjustments?: Array<{ memberId: string; amount: number }>;
     },
@@ -53,6 +62,8 @@ export default function LiveFeed({ tripId }: LiveFeedProps) {
 
     try {
       const updateData: any = {
+        expectedVersion: editingTransaction.version || 1,
+        tripId,
         description: data.description,
         totalAmount: data.total_amount,
         payerId: data.payer_id,
@@ -83,6 +94,7 @@ export default function LiveFeed({ tripId }: LiveFeedProps) {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${session.access_token}`,
+            "Idempotency-Key": data.operationId || crypto.randomUUID(),
           },
           body: JSON.stringify(updateData),
         },
@@ -93,6 +105,8 @@ export default function LiveFeed({ tripId }: LiveFeedProps) {
         throw new Error(result?.error || "Failed to update transaction");
       }
 
+      const result = await response.json();
+      setUndo({ id: result.changeId, message: "Expense updated" });
       setEditingTransaction(null);
       await refetch();
     } catch (error) {
@@ -114,13 +128,22 @@ export default function LiveFeed({ tripId }: LiveFeedProps) {
       const response = await fetch(`/api/transactions/${transactionId}`, {
         method: "DELETE",
         headers: {
+          "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
+          "Idempotency-Key": (deleteRequests.current[transactionId] ||=
+            crypto.randomUUID()),
         },
+        body: JSON.stringify({
+          expectedVersion: editingTransaction?.version || 1,
+          tripId,
+        }),
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to delete transaction");
-      }
+      const result = await response.json();
+      if (!response.ok)
+        throw new Error(result?.error || "Failed to delete transaction");
+      delete deleteRequests.current[transactionId];
+      setUndo({ id: result.changeId, message: "Expense deleted" });
 
       // Optimistically remove transaction from UI immediately
       removeTransaction(transactionId);
@@ -142,6 +165,30 @@ export default function LiveFeed({ tripId }: LiveFeedProps) {
         onDelete={handleDelete}
       />
 
+      <ExpenseHistory
+        tripId={tripId}
+        refreshKey={transactions.map((t) => `${t.id}:${t.version}`).join(",")}
+        onChange={() => void refetch()}
+      />
+      {undo && (
+        <UndoToast
+          show
+          type="transaction"
+          itemId={undo.id}
+          message={undo.message}
+          onDismiss={() => setUndo(null)}
+          onUndo={async () => {
+            if (!tripId) return;
+            await undoExpense(
+              tripId,
+              undo.id,
+              (undoRequests.current[undo.id] ||= crypto.randomUUID()),
+            );
+            setUndo(null);
+            await refetch();
+          }}
+        />
+      )}
       {editingTransaction && memberNames.length > 0 && (
         <TransactionEditForm
           transaction={editingTransaction as any}
@@ -149,7 +196,10 @@ export default function LiveFeed({ tripId }: LiveFeedProps) {
           tripId={tripId}
           onDelete={() => handleDelete(editingTransaction.id)}
           onSubmit={handleEdit}
-          onCancel={() => setEditingTransaction(null)}
+          onCancel={() => {
+            setEditingTransaction(null);
+            void refetch();
+          }}
         />
       )}
     </>

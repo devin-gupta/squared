@@ -121,3 +121,35 @@ references; foreign AI receipt review; the USD editor; CSV export; and mobile la
 and accessibility. All accounts and database requests in those checks are mocked.
 The public rate endpoint was also checked with a real INR/USD lookup, without any
 expense data. Production needs migration 003 from SETUP.md before foreign saves.
+
+### Shared invitations and travel drafts
+
+`npm test` runs the new migration in an isolated PGlite PostgreSQL database with
+Supabase-style roles, `auth.uid()` and RLS. It checks explicit name claiming,
+organizer-only bulk additions, atomic shares/history, exact-operation retries,
+stale-edit rejection, deletion/undo and fresh-trip name reuse.
+
+For mobile browser regressions, install WebKit with `npx playwright install webkit`,
+run `npm run build`, start the production server on `127.0.0.1:3000`, then run
+`npm run test:browser`. CI installs Linux browser dependencies and runs this suite
+automatically. If the build uses a different Supabase URL, provide the same
+`NEXT_PUBLIC_SUPABASE_URL` to the test runner so its mock matches the build.
+`APP_ORIGIN` can point to the deployed build for a production UI check.
+
+The browser fixture blocks external traffic and WebSockets, uses synthetic auth,
+and routes expense/member operations into the isolated SQL database. It never
+sends messages, writes live trip records, or calls an AI provider. It exercises:
+
+- Text/image draft recovery and offline save without posting to the trip.
+- A successful database save whose HTTP response is lost, followed by reload and
+  retry: the exact operation ID, USD amount and exchange rate are reused.
+- Default currency/payer/participants, edit/undo/history and delete/restore.
+- Google callback continuation into explicit name selection, adding a new person,
+  existing-member bypass and organizer-added names.
+- Next-trip creation with fresh balances and unclaimed names.
+- Large QR-first invitations, URL-only native sharing, copy fallback and mobile
+  layout/accessibility at 320, 390 and 430 pixels.
+
+Screenshots go to the system temporary directory. Google consent-screen publishing
+and iMessage's native preview rendering still require checks on the real services;
+synthetic browser tests do not validate those external UIs.

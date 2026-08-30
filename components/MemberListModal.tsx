@@ -10,18 +10,23 @@ export default function MemberListModal({
   onClose,
   members,
   onRemoveMember,
+  onAddNames,
   canRemove = false,
   currentMemberId,
   creatorName,
 }: {
   isOpen: boolean;
   onClose: () => void;
-  members: Array<{ id: string; display_name: string }>;
+  members: Array<{ id: string; display_name: string; user_id?: string | null }>;
   onRemoveMember: (id: string) => Promise<void>;
+  onAddNames?: (names: string[]) => Promise<void>;
   canRemove?: boolean;
   currentMemberId?: string;
   creatorName?: string;
 }) {
+  const [names, setNames] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState("");
   const [selected, setSelected] = useState<{
     id: string;
     display_name: string;
@@ -62,7 +67,7 @@ export default function MemberListModal({
     <Modal
       open={isOpen}
       onClose={() => {
-        if (!inFlight.current) onClose();
+        if (!inFlight.current && !adding) onClose();
       }}
       title={
         selected
@@ -122,6 +127,65 @@ export default function MemberListModal({
         </div>
       ) : (
         <div className="space-y-2">
+          {canRemove && onAddNames && (
+            <form
+              className="mb-5 space-y-3 border-b border-[#e1e5dc] pb-5"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (adding) return;
+                setAdding(true);
+                setAddError("");
+                try {
+                  await onAddNames(
+                    names
+                      .split(/[\n,]/)
+                      .map((s) => s.trim())
+                      .filter(Boolean),
+                  );
+                  setNames("");
+                  setNotice(
+                    "Names added. Share the same trip link so friends can choose themselves.",
+                  );
+                } catch (e) {
+                  setAddError(
+                    e instanceof Error ? e.message : "Couldn’t add names",
+                  );
+                } finally {
+                  setAdding(false);
+                }
+              }}
+            >
+              <label
+                htmlFor="member-names"
+                className="block text-sm font-medium"
+              >
+                Add friends by name
+              </label>
+              <textarea
+                id="member-names"
+                value={names}
+                disabled={adding}
+                onChange={(e) => setNames(e.target.value)}
+                placeholder="Alex, Sam, Priya"
+                className="w-full"
+              />
+              <p className="muted text-xs">
+                No email needed. Add up to 50 names, separated by commas or new
+                lines.
+              </p>
+              {addError && (
+                <p role="alert" className="text-sm text-red-800">
+                  {addError}
+                </p>
+              )}
+              <button
+                className="btn-primary"
+                disabled={adding || !names.trim()}
+              >
+                {adding ? "Adding…" : "Add names"}
+              </button>
+            </form>
+          )}
           {notice && (
             <p role="status" className="muted py-2">
               {notice}
