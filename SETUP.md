@@ -236,8 +236,10 @@ at build time or when someone shares a link.
 
 New invite URLs use `/trip/INVITEAA?name=Yosemite+Weekend`. Native sharing and
 clipboard fallback send **only this URL**, without a message body or separate
-title field. The sender sees a preview before sharing; QR and link-only copy
-remain available. Cancelling native sharing never changes the clipboard.
+title field. The invite dialog opens with a large QR code, then the copy-link
+controls, then native sharing when supported. The artwork remains in the link
+preview and recipient page, not in the sender's dialog. Cancelling native sharing
+never changes the clipboard.
 
 The public landing page shows the invitation, trip name, artwork, and reason to
 join before sign-in. Google sign-in is available directly; email is an alternative.
