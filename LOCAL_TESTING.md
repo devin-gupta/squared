@@ -153,3 +153,19 @@ sends messages, writes live trip records, or calls an AI provider. It exercises:
 Screenshots go to the system temporary directory. Google consent-screen publishing
 and iMessage's native preview rendering still require checks on the real services;
 synthetic browser tests do not validate those external UIs.
+
+### Installation and push checks
+
+`tests/push.test.cjs` runs migration 006 in isolated PostgreSQL and checks recipient
+selection, RLS, duplicate prevention, delivery leases, ownership changes,
+unsubscribe, provider failures, endpoint allowlisting and service-worker click
+routing. No test calls a live push service.
+
+`npm run test:browser` now also runs `tests/browser/device-options.cjs`. It checks
+that installation and notification prompts never run automatically, iOS gets
+Home Screen instructions, and permission denial, registration failure, opt-out and
+sign-out produce truthful states. Native install and notification APIs are mocked;
+this does not prove delivery through Apple's/Google's production push services.
+
+The generated `/sw.js` must import `/push-worker.js`. Keep the existing Workbox
+worker and its draft/auth cache behavior; do not register a second competing worker.

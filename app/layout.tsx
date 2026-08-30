@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Navigation from "@/components/Navigation";
+import DeviceOptions from "@/components/DeviceOptions";
 import { socialMetadata } from "@/lib/metadata";
 
 export const metadata: Metadata = {
@@ -52,6 +53,7 @@ export default function RootLayout({
         <Navigation />
         <main id="main-content" className="app-content">
           {children}
+          <DeviceOptions />
         </main>
       </body>
     </html>

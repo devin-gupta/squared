@@ -156,6 +156,7 @@ function HomeContent() {
           joinedId ||
           availableTrips.find((t) => t.id === searchParams.get("newTripFrom"))
             ?.id ||
+          availableTrips.find((t) => t.id === searchParams.get("trip"))?.id ||
           availableTrips.find((t) => t.id === storedId)?.id ||
           availableTrips[0]?.id;
         if (selectedId) {
@@ -187,6 +188,7 @@ function HomeContent() {
           setCurrentUser(displayName);
           writePreference("tripId", null);
         }
+        if (!invite && searchParams.has("trip")) router.replace("/");
         if (invite) {
           forgetInvite(invite);
           setActiveInvite(null);

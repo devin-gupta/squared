@@ -1,4 +1,5 @@
 import { supabase } from "../supabase/client";
+import { requestPushDelivery } from "../push/client";
 import type { TransactionParsed } from "@/types/transaction";
 import { prepareUsdExpense } from "../currency/client";
 
@@ -87,6 +88,7 @@ export async function commitPreparedExpense(
             "Save wasn’t confirmed. Retry this draft to check it without creating a duplicate.",
       ["22023", "23503", "PGRST202"].includes(error?.code || ""),
     );
+  void requestPushDelivery();
   return data;
 }
 export async function createTransaction(

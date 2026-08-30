@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase/client";
+import { disconnectPushForSignOut } from "@/lib/push/client";
 import {
   clearDevicePreferences,
   normalizeInvite,
@@ -58,6 +59,7 @@ async function signIn(email: string, inviteCode?: string | null) {
   rememberEmail(email);
 }
 async function signOut() {
+  await disconnectPushForSignOut();
   // Signing out here should not sign the user out of their other devices.
   const { error } = await supabase.auth.signOut({ scope: "local" });
   if (error) throw error;

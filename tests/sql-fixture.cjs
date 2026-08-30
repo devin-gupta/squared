@@ -5,7 +5,7 @@ const alice = "11111111-1111-4111-8111-111111111111",
   cara = "33333333-3333-4333-8333-333333333333";
 async function database() {
   const db = new PGlite();
-  await db.exec(`CREATE ROLE authenticated; CREATE ROLE anon; CREATE SCHEMA auth; CREATE TABLE auth.users(id uuid PRIMARY KEY);
+  await db.exec(`CREATE ROLE authenticated; CREATE ROLE anon; CREATE ROLE service_role BYPASSRLS; CREATE SCHEMA auth; CREATE TABLE auth.users(id uuid PRIMARY KEY);
  CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$SELECT NULLIF(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
  GRANT USAGE ON SCHEMA public,auth TO authenticated,anon;
  INSERT INTO auth.users VALUES('${alice}'),('${bob}'),('${cara}');`);

@@ -8,7 +8,7 @@ export class ExpenseRequestError extends Error {
     super(message);
   }
 }
-export async function expenseClient(request: Request) {
+export async function authenticatedExpenseClient(request: Request) {
   const token = request.headers
     .get("authorization")
     ?.match(/^Bearer (\S+)$/i)?.[1];
@@ -31,7 +31,10 @@ export async function expenseClient(request: Request) {
   } = await client.auth.getUser(token);
   if (error || !user)
     throw new ExpenseRequestError("Your sign-in expired. Sign in again.", 401);
-  return client;
+  return { client, user };
+}
+export async function expenseClient(request: Request) {
+  return (await authenticatedExpenseClient(request)).client;
 }
 export function operationId(request: Request) {
   const id = request.headers.get("idempotency-key");

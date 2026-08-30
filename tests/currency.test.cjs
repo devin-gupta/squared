@@ -122,6 +122,7 @@ test("USD entry skips rate requests; failed foreign conversion performs no datab
   assert.equal(usd.total_amount, 1000);
   assert.equal(calls, 0);
   const create = moduleAt("lib/transactions/create.ts", {
+    "../push/client": { requestPushDelivery: async () => {} },
     "../currency/client": client,
     "../supabase/client": {
       supabase: {
@@ -209,6 +210,7 @@ test("foreign save uses one atomic RPC with category, USD shares and the convers
     },
   };
   const create = moduleAt("lib/transactions/create.ts", {
+    "../push/client": { requestPushDelivery: async () => {} },
     "../currency/client": { prepareUsdExpense: async () => converted },
     "../supabase/client": { supabase },
     "../trips/addMember": {},
@@ -232,6 +234,7 @@ test("foreign save uses one atomic RPC with category, USD shares and the convers
 test("missing atomic-save migration cannot fall back to non-atomic expense inserts", async () => {
   let calls = 0;
   const create = moduleAt("lib/transactions/create.ts", {
+    "../push/client": { requestPushDelivery: async () => {} },
     "../supabase/client": {
       supabase: {
         rpc: async () => {

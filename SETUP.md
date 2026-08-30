@@ -359,3 +359,63 @@ may require verification before draft branding can be published; check the conso
 published status if the old name/logo remains visible. See Google's
 [brand verification requirements](https://developers.google.com/identity/verification/authentication-verification).
 No Apple sign-in, Home Screen prompts, or analytics were added in this release.
+
+### Manual Home Screen installation and opt-in push
+
+The **App & notifications** menu is available at the bottom of the app. There is
+no automatic install banner or permission request. Supported browsers expose the
+native install action only after a click; iPhone/iPad users see Safari → Share →
+Add to Home Screen instructions. iOS/iPadOS 16.4+ require launching the Home Screen
+app before enabling push. See [WebKit's requirements](https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/).
+
+Production setup:
+
+1. Apply `supabase/migrations/006_push_notifications.sql` after 005. It adds private
+   device subscriptions and a delivery queue, plus a trigger for **new** expense
+   history entries. Existing expenses are not changed or announced retroactively.
+2. Add `SUPABASE_SERVICE_ROLE_KEY` as a **Sensitive, Production-only** Vercel
+   variable, using this project's Supabase server secret / legacy `service_role`
+   key. Never prefix it with `NEXT_PUBLIC_`, commit it, or paste it into chat.
+3. `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `CRON_SECRET` have been generated and
+   configured in Vercel Production for this release. The private key and cron
+   secret are Sensitive. Keep the VAPID pair stable: changing it requires existing
+   devices to disable and re-enable notifications. The public key is served by
+   `/api/push/config`, only once the backend readiness check passes.
+4. Environment changes require a new commit-triggered deployment. Do not use a
+   direct uncommitted Vercel deployment.
+
+Only explicitly subscribed devices receive notifications when **someone else adds
+an expense** to a shared trip. The notification names the actor and trip, without
+amounts, descriptions, or receipt contents. Edits, deletions and backfilled history
+do not send notifications. Tapping an alert selects a trip only after the signed-in
+account's membership is verified; it never joins a trip or grants access.
+
+Subscriptions are per device, limited to five per account, and expire after 90 days
+unless re-enabled. Disable uses both server deletion and browser unsubscribe.
+Signing out disconnects this device; a service-worker recipient marker also blocks
+queued notifications for a previous account on a shared browser.
+
+New expense history entries atomically enqueue deliveries for current opted-in
+peers. A successful save and authenticated app opening request an immediate server
+flush using Next.js `after()`. Delivery failures never change the outcome of an
+expense save. Workers lease jobs, use stable notification tags, retry transient
+failures with backoff, and remove expired 404/410 subscriptions. Membership,
+subscription ownership and expense existence are checked again when claiming jobs.
+Expired jobs are discarded after 24 hours. Push remains best effort; OS Focus,
+network conditions and provider delivery policies can delay or suppress alerts.
+
+The daily `/api/push/cron` job is a fallback for pending deliveries, protected by
+`CRON_SECRET`; active app openings/saves provide the immediate path. It intentionally
+uses a daily schedule compatible with Vercel Hobby. More frequent outage recovery
+would require a more frequent scheduler; [Vercel's plan limits](https://vercel.com/docs/cron-jobs/usage-and-pricing)
+allow once-per-minute schedules on Pro. No plan upgrade or paid messaging provider
+was enabled.
+
+Push credentials, subscription endpoints and encryption keys are never exposed to
+other group members. The server only contacts allowlisted Apple, Google, Mozilla
+and Windows push endpoints, and does not log sensitive request/response bodies.
+
+The unit/SQL and browser suites use synthetic subscriptions and mocked sends.
+They do not send real notifications or open permission dialogs on your device.
+A real iPhone delivery check still requires a user to install the app and explicitly
+opt in. Do not send test pushes to live members without their permission.
