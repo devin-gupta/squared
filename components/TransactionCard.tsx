@@ -6,6 +6,7 @@ import Icon from "./Icon";
 import type { TransactionWithShares } from "@/lib/statistics/personal";
 import { currencyAmount } from "@/lib/currency/convert";
 import CurrencyReference from "./CurrencyReference";
+import { categoryLabel } from "@/lib/categories";
 
 export type DisplayTransaction = TransactionWithShares & {
   payer?: { display_name: string };
@@ -36,7 +37,9 @@ export default function TransactionCard({
     ? "coffee"
     : /stay|accommodation|lodging/i.test(category)
       ? "home"
-      : /transport|activity|travel/i.test(category)
+      : /transport|activit|travel|car_rental|taxi|flights|parking|gas/i.test(
+            category,
+          )
         ? "travel"
         : "ledger";
   return (
@@ -83,7 +86,7 @@ export default function TransactionCard({
             {money(Number(transaction.total_amount))}
           </span>
           <span className="mt-1 block text-[10px] text-[#5e6b5f]">
-            {category}
+            {categoryLabel(category)}
           </span>
         </span>
         <Icon

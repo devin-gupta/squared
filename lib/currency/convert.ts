@@ -25,6 +25,7 @@ export const CURRENCIES = [
   ["TRY", "Turkish lira"],
   ["SEK", "Swedish krona"],
   ["NOK", "Norwegian krone"],
+  ["ISK", "Icelandic króna"],
   ["DKK", "Danish krone"],
   ["PLN", "Polish złoty"],
   ["CZK", "Czech koruna"],
@@ -32,6 +33,15 @@ export const CURRENCIES = [
   ["MYR", "Malaysian ringgit"],
   ["PHP", "Philippine peso"],
   ["ILS", "Israeli shekel"],
+  ["TWD", "New Taiwan dollar"],
+  ["CLP", "Chilean peso"],
+  ["COP", "Colombian peso"],
+  ["PEN", "Peruvian sol"],
+  ["MAD", "Moroccan dirham"],
+  ["EGP", "Egyptian pound"],
+  ["KES", "Kenyan shilling"],
+  ["NPR", "Nepalese rupee"],
+  ["LKR", "Sri Lankan rupee"],
 ] as const;
 
 export interface CurrencyQuote {

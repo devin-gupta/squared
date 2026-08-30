@@ -16,8 +16,7 @@ export default function CameraButton({
       <input
         ref={input}
         type="file"
-        accept="image/*"
-        capture="environment"
+        accept="image/jpeg,image/png,image/webp"
         className="hidden"
         disabled={disabled}
         onChange={(e) => {
@@ -33,7 +32,7 @@ export default function CameraButton({
         className="flex min-h-11 items-center gap-2 text-xs font-medium text-[#58664f]"
       >
         <Icon name="camera" width="18" />
-        <span>Scan receipt</span>
+        <span>Attach image</span>
       </button>
     </>
   );

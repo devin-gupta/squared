@@ -1,43 +1,45 @@
-import type { CurrencyConversion } from '@/lib/currency/convert'
+import type { CurrencyConversion } from "@/lib/currency/convert";
 
 export interface TransactionParsed {
-  description: string
-  total_amount: number
-  currency?: string
-  currency_conversion?: CurrencyConversion
-  payer_id?: string
-  payer_name?: string
-  split_type: 'equal' | 'custom'
-  adjustments?: { user_id?: string; user_name?: string; amount: number }[]
-  line_items?: LineItem[]
-  category?: string
+  description: string;
+  total_amount: number;
+  currency?: string;
+  currency_conversion?: CurrencyConversion;
+  payer_id?: string;
+  payer_name?: string;
+  split_type: "equal" | "custom";
+  adjustments?: { user_id?: string; user_name?: string; amount: number }[];
+  line_items?: LineItem[];
+  category?: string;
+  amount_text?: string;
+  review_note?: string;
 }
 
 export interface LineItem {
-  description: string
-  amount: number
-  category: string
-  split_among?: string[] // member names or IDs
+  description: string;
+  amount: number;
+  category: string;
+  split_among?: string[]; // member names or IDs
 }
 
 export interface Transaction {
-  id: string
-  trip_id: string
-  description: string
-  total_amount: number
-  currency_conversion?: CurrencyConversion | null
-  payer_id: string
-  split_type: 'equal' | 'custom'
-  receipt_url?: string | null
-  line_items?: LineItem[] | null
-  created_at: string
-  updated_at: string
-  status: 'pending' | 'finalized'
+  id: string;
+  trip_id: string;
+  description: string;
+  total_amount: number;
+  currency_conversion?: CurrencyConversion | null;
+  payer_id: string;
+  split_type: "equal" | "custom";
+  receipt_url?: string | null;
+  line_items?: LineItem[] | null;
+  created_at: string;
+  updated_at: string;
+  status: "pending" | "finalized";
 }
 
 export interface TransactionAdjustment {
-  id: string
-  transaction_id: string
-  member_id: string
-  amount: number
+  id: string;
+  transaction_id: string;
+  member_id: string;
+  amount: number;
 }

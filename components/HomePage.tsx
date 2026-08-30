@@ -492,7 +492,7 @@ function HomeContent() {
     setPendingReceiptUrl(null);
     try {
       const result = imageFile
-        ? await parseReceipt(imageFile)
+        ? await parseReceipt(imageFile, text)
         : { parsed: await parseText(text), receiptUrl: null };
       const parsed = result.parsed;
       if (!parsed)
@@ -500,6 +500,8 @@ function HomeContent() {
       setPendingParsed(parsed);
       setPendingReceiptUrl(result.receiptUrl);
       if (
+        imageFile ||
+        parsed.review_note ||
         !(parsed.total_amount > 0) ||
         !parsed.description ||
         (parsed.currency && parsed.currency !== "USD")

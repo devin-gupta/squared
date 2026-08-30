@@ -39,7 +39,12 @@ OPENROUTER_API_KEY=your_openrouter_api_key
 
 - The code expects `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (Supabase's new publishable key format)
 - Replace the placeholder values with your actual credentials
-- AI uses only `openrouter/free`, with no paid fallback. Free models have shared usage limits and varying availability; manual entry remains available.
+- AI first uses the pinned `google/gemma-4-31b-it:free` vision/instruction model. The random `openrouter/free` router can select a content-safety classifier instead of an expense reader. When the primary returns HTTP 429 and `OPENAI_API_KEY` is configured, the app makes exactly one paid fallback attempt using OpenAI `gpt-4.1-mini-2025-04-14`. No fallback occurs for other errors or malformed output. Each provider has a 25-second timeout, no automatic retries, and a 4,096-token output cap. Manual entry remains available if either service is unavailable.
+- To enable fallback, set `OPENAI_API_KEY` server-side in local development and as a **Sensitive** Vercel environment variable for Production and Preview, then deploy through the repository's CI/CD. Never put it in Git or a `NEXT_PUBLIC_` variable. OpenAI API usage is billed separately; configure usage alerts/budgets in the OpenAI project. Without this key, the app retains free-only behavior.
+
+Receipt and booking images can be attached with the picker, pasted into the Add Expense box, or dropped onto it. Use one JPEG, PNG, or WebP up to 4 MB; typed notes are sent with the image to clarify the payer or split. Image results always open for review before saving. The parser retains the printed total for review and interprets locale-specific separators (for example, `79.086 ISK` means 79,086 Icelandic króna). Conversion uses the current reference rate, not an AI-generated rate, and the ledger remains in USD. Categories include car rental, flights, public transport, parking/tolls, insurance, visas, SIM/eSIM, and other travel costs.
+
+For an opt-in live image evaluation, run `node scripts/evaluate-receipt.cjs /path/to/receipt.png 3`. This sends that image to the configured AI providers, including the paid fallback when enabled, but does not upload it to Supabase or write an expense. The script stops on unrecovered provider errors; mocked tests do not prove live extraction accuracy.
 - AI requests require a signed-in trip member. Keep `OPENROUTER_API_KEY` server-only and out of Git.
 - Receipt uploads support JPEG, PNG, or WebP up to 4 MB; HEIC must be converted before upload.
 - You can find your publishable key in Supabase Dashboard → Settings → API → Publishable key

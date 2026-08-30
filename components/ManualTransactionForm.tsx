@@ -119,6 +119,17 @@ export default function ManualTransactionForm({
       }
     >
       <form onSubmit={handleSubmit} className="space-y-5">
+        {initialData?.amount_text && (
+          <p className="rounded-xl bg-[#edf1e9] p-3 text-sm">
+            Printed total: <strong>{initialData.amount_text}</strong>. Check the
+            amount and currency before saving.
+          </p>
+        )}
+        {initialData?.review_note && (
+          <p role="alert" className="text-sm text-amber-800">
+            {initialData.review_note}
+          </p>
+        )}
         <div>
           <label
             htmlFor="expense-description"

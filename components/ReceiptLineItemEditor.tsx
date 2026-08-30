@@ -3,6 +3,7 @@
 import { useState, useEffect, useId } from "react";
 import { motion } from "framer-motion";
 import { LineItem } from "@/types/transaction";
+import { CATEGORIES, normalizeCategory } from "@/lib/categories";
 
 interface ReceiptLineItemEditorProps {
   lineItems: LineItem[];
@@ -73,7 +74,7 @@ export default function ReceiptLineItemEditor({
     const newItem: LineItem = {
       description: "",
       amount: 0,
-      category: "food",
+      category: "other",
       split_among: [],
     };
     const updated = [...editedItems, newItem];
@@ -159,18 +160,17 @@ export default function ReceiptLineItemEditor({
               </label>
               <select
                 id={`${fieldId}-${index}-category`}
-                value={item.category}
+                value={normalizeCategory(item.category)}
                 onChange={(e) =>
                   handleItemChange(index, { category: e.target.value })
                 }
                 className="w-full px-3 py-2 bg-transparent border-b border-accent/20 text-accent text-sm focus:outline-none focus:border-accent"
               >
-                <option value="food">Food</option>
-                <option value="alcohol">Alcohol</option>
-                <option value="groceries">Groceries</option>
-                <option value="gas">Gas</option>
-                <option value="lodging">Lodging</option>
-                <option value="other">Other</option>
+                {CATEGORIES.map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
               </select>
             </div>
 

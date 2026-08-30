@@ -8,6 +8,7 @@ import {
   Legend,
   Tooltip,
 } from "recharts";
+import { categoryLabel } from "@/lib/categories";
 
 interface CategoryData {
   category: string;
@@ -38,7 +39,7 @@ export default function CategoryPieChart({ data }: CategoryPieChartProps) {
   }
 
   const chartData = data.map((item) => ({
-    name: item.category,
+    name: categoryLabel(item.category),
     value: item.amount,
     percentage: item.percentage,
   }));

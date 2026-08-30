@@ -77,13 +77,14 @@ export function useAIParser({
     }
   };
 
-  const parseReceipt = async (file: File) => {
+  const parseReceipt = async (file: File, note = "") => {
     setIsLoading(true);
     setError(null);
 
     try {
       const formData = new FormData();
       formData.append("file", file);
+      if (note.trim()) formData.append("note", note.trim());
       if (tripId) {
         formData.append("tripId", tripId);
       }

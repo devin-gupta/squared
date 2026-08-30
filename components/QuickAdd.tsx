@@ -1,9 +1,10 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import CameraButton from "./CameraButton";
 import Icon from "./Icon";
 import ExpenseProgress from "./ExpenseProgress";
+import { receiptFileError, transferredFiles } from "@/lib/receipts/files";
 import type {
   ExpenseEntryProgress,
   ExpenseEntryResult,
@@ -38,6 +39,9 @@ export default function QuickAdd({
   const inFlight = useRef(false);
   const [input, setInput] = useState("");
   const [imageFile, setImageFile] = useState<File>();
+  const [imagePreview, setImagePreview] = useState("");
+  const [dragging, setDragging] = useState(false);
+  const dragDepth = useRef(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState<Extract<
@@ -45,6 +49,32 @@ export default function QuickAdd({
     { status: "saved" }
   > | null>(null);
   const busy = submitting || !!isProcessing;
+  useEffect(() => {
+    if (!imageFile) {
+      setImagePreview("");
+      return;
+    }
+    const url = URL.createObjectURL(imageFile);
+    setImagePreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [imageFile]);
+  const attachFiles = (files: File[]) => {
+    if (busy || inFlight.current || !files.length) return;
+    if (files.length !== 1) {
+      setError(
+        "Attach one image per expense. Your existing draft is unchanged.",
+      );
+      return;
+    }
+    const message = receiptFileError(files[0]);
+    if (message) {
+      setError(message);
+      return;
+    }
+    setImageFile(files[0]);
+    setError("");
+    setSaved(null);
+  };
   const reset = () => {
     setSaved(null);
     setError("");
@@ -76,7 +106,38 @@ export default function QuickAdd({
     }
   };
   return (
-    <section className={embedded ? "" : "panel overflow-hidden"}>
+    <section
+      className={`${embedded ? "" : "panel overflow-hidden"} ${dragging ? "rounded-2xl ring-2 ring-[#557344]" : ""}`}
+      onPaste={(event) => {
+        const files = transferredFiles(event.clipboardData);
+        if (!files.length) return; // Ordinary text paste must keep working.
+        event.preventDefault();
+        attachFiles(files);
+      }}
+      onDragEnter={(event) => {
+        if (!event.dataTransfer.types.includes("Files")) return;
+        event.preventDefault();
+        dragDepth.current++;
+        if (!busy) setDragging(true);
+      }}
+      onDragOver={(event) => {
+        if (!event.dataTransfer.types.includes("Files")) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = busy ? "none" : "copy";
+      }}
+      onDragLeave={() => {
+        dragDepth.current = Math.max(0, dragDepth.current - 1);
+        if (!dragDepth.current) setDragging(false);
+      }}
+      onDrop={(event) => {
+        if (!event.dataTransfer.types.includes("Files")) return;
+        event.preventDefault();
+        event.stopPropagation();
+        dragDepth.current = 0;
+        setDragging(false);
+        attachFiles(transferredFiles(event.dataTransfer));
+      }}
+    >
       <div
         className={
           embedded
@@ -144,11 +205,29 @@ export default function QuickAdd({
             }}
             placeholder="Dinner was $120, Alex paid. Split it equally."
             className="min-h-[112px] w-full resize-y rounded-xl border border-[#e1e5dc] bg-[#fafbf8] p-4 text-[1rem] leading-relaxed"
-            aria-describedby={error ? `${inputId}-error` : undefined}
+            aria-describedby={`${inputId}-hint${error ? ` ${inputId}-error` : ""}`}
           />
+          <p
+            id={`${inputId}-hint`}
+            className="muted mt-2 text-xs"
+            aria-live="polite"
+          >
+            {dragging
+              ? "Drop one image to attach it."
+              : "Type an expense, or paste/drop a receipt or booking image. JPEG, PNG or WebP, up to 4 MB."}
+          </p>
           {imageFile && (
             <div className="mt-2 flex items-center justify-between gap-3 rounded-lg bg-[#edf1e9] px-3 py-2 text-xs">
-              <span className="truncate">Receipt: {imageFile.name}</span>
+              {imagePreview && (
+                <img
+                  src={imagePreview}
+                  alt="Attached expense image preview"
+                  className="h-14 w-14 shrink-0 rounded object-contain bg-white"
+                />
+              )}
+              <span className="min-w-0 flex-1 break-words" role="status">
+                Image: {imageFile.name || "Pasted image"}
+              </span>
               <button
                 type="button"
                 onClick={() => setImageFile(undefined)}
@@ -173,7 +252,10 @@ export default function QuickAdd({
             </div>
           )}
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-            <CameraButton onImageCapture={setImageFile} />
+            <CameraButton
+              onImageCapture={(file) => attachFiles([file])}
+              disabled={busy}
+            />
             <button
               type="submit"
               disabled={!input.trim() && !imageFile}
