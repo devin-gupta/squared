@@ -41,7 +41,11 @@ export default function ShareTripModal({
     >
       <div className="flex flex-col items-center rounded-2xl bg-[#f5f7f0] p-6">
         <div className="rounded-xl bg-white p-3">
-          <QRCodeSVG value={shareUrl} size={176} />
+          <QRCodeSVG
+            value={shareUrl}
+            size={176}
+            title={`Scan to join ${tripName} on Squared`}
+          />
         </div>
         <p className="muted mt-4 text-xs">Scan to join the trip</p>
         <p className="mt-3 font-mono text-lg tracking-[0.2em]">{inviteCode}</p>

@@ -226,6 +226,37 @@ Different Google email addresses create different accounts.
 
 ## Troubleshooting
 
+### Brand icons and iMessage invite previews
+
+The editable vector sources are `public/brand/mark.svg` and
+`public/brand/share-card.svg`. Run `node scripts/generate-brand-assets.cjs` after
+editing them to regenerate the committed PNGs and multi-resolution favicon. The
+script uses Sharp, installed by Next.js. No image generation service is needed
+at build time or when someone shares a link.
+
+New invite URLs use `/trip/INVITEAA`, which server-redirects to the existing
+`/?code=INVITEAA` join flow; old links continue to work. The path format also
+avoids Next.js 15's Open Graph resolver dropping queries on root URLs.
+Their Open Graph and Twitter metadata are
+rendered into the initial HTML, with a public 1200×630 image and a high-resolution
+Apple touch icon. Preview crawlers do not need to sign in or run JavaScript.
+Metadata never fetches trip names, members, or expenses. `og:url` preserves the
+validated invite code; invite pages are marked `noindex`.
+Run `node scripts/check-share-preview.cjs https://squared-omega.vercel.app` to
+check the deployed HTML as multiple crawlers and validate image dimensions.
+
+The default public origin is `https://squared-omega.vercel.app`. If the app moves,
+set `NEXT_PUBLIC_SITE_URL` to its new HTTPS origin and update Supabase redirects.
+The preview image and icons use versioned asset paths; increment those references
+for future redesigns. The manifest revalidates rather than caching for a year.
+
+Apple controls the final preview layout and caches previews already sent in
+Messages. Test with a newly sent invitation; an old message may retain its old
+card. Existing Home Screen shortcuts may need to be removed and added again to
+refresh their icon. A real Messages send and Add to Home Screen check on an iPhone
+is the final device check; browser previews do not emulate Apple's native renderer.
+See [Apple's rich-preview guidance](https://developer.apple.com/documentation/technotes/tn3156-create-rich-previews-for-messages).
+
 ### Migration Errors
 
 If you get errors about tables already existing:

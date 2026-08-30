@@ -16,6 +16,9 @@ const withPWA = require("next-pwa")({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Messages fetches pages without executing JS, using varying user agents.
+  // Our metadata is cheap and private-data-free; put it in <head> for everyone.
+  htmlLimitedBots: /.*/,
   images: {
     domains: [],
   },

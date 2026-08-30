@@ -1,11 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Navigation from "@/components/Navigation";
+import { socialMetadata } from "@/lib/metadata";
 
 export const metadata: Metadata = {
-  title: "Squared",
-  description: "Minimalist, AI-powered expense tracking for group trips",
-  manifest: "/manifest.json",
+  ...socialMetadata,
+  manifest: "/manifest.json?v=2",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -13,12 +13,17 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/favicon.ico" },
-      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
-      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      {
+        url: "/favicon.ico?v=2",
+        sizes: "16x16 32x32 48x48",
+        type: "image/x-icon",
+      },
+      { url: "/brand/mark.svg", sizes: "any", type: "image/svg+xml" },
+      { url: "/brand/icon-32-v2.png", sizes: "32x32", type: "image/png" },
+      { url: "/brand/icon-192-v2.png", sizes: "192x192", type: "image/png" },
     ],
     apple: [
-      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+      { url: "/brand/icon-180-v2.png", sizes: "180x180", type: "image/png" },
     ],
   },
 };
@@ -37,26 +42,6 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <head>
-        <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-        <link
-          rel="icon"
-          type="image/png"
-          sizes="16x16"
-          href="/favicon-16x16.png"
-        />
-        <link
-          rel="icon"
-          type="image/png"
-          sizes="32x32"
-          href="/favicon-32x32.png"
-        />
-        <link
-          rel="apple-touch-icon"
-          sizes="180x180"
-          href="/apple-touch-icon.png"
-        />
-      </head>
       <body>
         <a
           href="#main-content"

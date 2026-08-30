@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="paper" x2="0" y2="1"><stop stop-color="#fbfcf8"/><stop offset="1" stop-color="#edf1e7"/></linearGradient>
+    <linearGradient id="sky" x2="0" y2="1"><stop stop-color="#dfead6"/><stop offset="1" stop-color="#eff3e8"/></linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="180%"><feDropShadow dx="0" dy="18" stdDeviation="16" flood-color="#223c32" flood-opacity=".12"/></filter>
+    <clipPath id="landscape"><rect x="0" y="0" width="350" height="282" rx="16"/></clipPath>
+  </defs>
+  <rect width="1200" height="630" fill="url(#paper)"/>
+  <circle cx="600" cy="348" r="245" fill="#e5ecdc"/>
+  <circle cx="600" cy="348" r="280" fill="none" stroke="#dfe6d6"/>
+  <circle cx="600" cy="348" r="316" fill="none" stroke="#e6ebdf"/>
+  <!-- The existing overlapping-square brand mark, with a quiet wordmark. -->
+  <g transform="translate(488 38)">
+    <rect width="48" height="48" rx="12" fill="#223c32"/>
+    <rect x="12.75" y="12" width="19.5" height="19.5" rx="3.4" fill="none" stroke="#f6f7f3" stroke-width="1.9"/>
+    <rect x="21.75" y="21" width="14.25" height="14.25" rx="2.8" fill="#223c32" stroke="#c7d8b5" stroke-width="1.9"/>
+    <text x="64" y="36" fill="#223c32" font-family="Arial, sans-serif" font-size="40" font-weight="600" letter-spacing="-2">squared<tspan fill="#81956b">.</tspan></text>
+  </g>
+  <!-- A trip postcard: original vector art, no destination or private trip data. -->
+  <g transform="translate(306 142) rotate(-9 198 202)" filter="url(#shadow)">
+    <rect width="398" height="404" rx="26" fill="#fff" stroke="#dce3d5"/>
+    <g transform="translate(24 24)" clip-path="url(#landscape)">
+      <rect width="350" height="282" fill="url(#sky)"/>
+      <circle cx="265" cy="68" r="31" fill="#e3c992"/>
+      <path d="M-30 228 100 59 250 260Z" fill="#8fa682"/>
+      <path d="m100 59-40 52 36-14 28 26 16-11Z" fill="#f6f7f3"/>
+      <path d="M105 280 261 131 392 281Z" fill="#56785e"/>
+      <path d="M-15 250c83-74 135-52 192-6s114 39 181-15v80H-15Z" fill="#2e5342"/>
+      <path d="M-15 281c96-29 138-7 186-16s113-28 195-10v55H-15Z" fill="#223c32"/>
+      <path d="M172 282c-4-32 69-27 58-49-4-8-18-11-25-14" fill="none" stroke="#dbe4c9" stroke-width="7" stroke-linecap="round"/>
+    </g>
+    <rect x="26" y="336" width="143" height="8" rx="4" fill="#d0dcc4"/>
+    <rect x="26" y="356" width="95" height="7" rx="3.5" fill="#e7ecdf"/>
+    <path d="m322 342 6 6 15-16" fill="none" stroke="#81956b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <!-- A shared tab, using abstract rows rather than real amounts or names. -->
+  <g transform="translate(618 237) rotate(8 142 150)" filter="url(#shadow)">
+    <rect width="280" height="300" rx="25" fill="#223c32"/>
+    <circle cx="52" cy="52" r="17" fill="#c7d8b5"/>
+    <circle cx="79" cy="52" r="17" fill="#e3c992" stroke="#223c32" stroke-width="4"/>
+    <circle cx="106" cy="52" r="17" fill="#f6f7f3" stroke="#223c32" stroke-width="4"/>
+    <path d="M32 91h216" stroke="#476151"/>
+    <g fill="#9db296"><rect x="34" y="117" width="104" height="8" rx="4"/><rect x="203" y="117" width="43" height="8" rx="4"/></g>
+    <g fill="#78957b"><rect x="34" y="148" width="79" height="8" rx="4"/><rect x="210" y="148" width="36" height="8" rx="4"/></g>
+    <g fill="#78957b"><rect x="34" y="179" width="121" height="8" rx="4"/><rect x="193" y="179" width="53" height="8" rx="4"/></g>
+    <rect x="27" y="219" width="226" height="54" rx="14" fill="#dfead6"/>
+    <rect x="44" y="242" width="106" height="8" rx="4" fill="#839b73"/>
+    <circle cx="223" cy="246" r="15" fill="#223c32"/>
+    <path d="m216 246 5 5 9-10" fill="none" stroke="#f6f7f3" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <g fill="none" stroke="#849b71" stroke-width="2.5" stroke-linecap="round">
+    <path d="M257 331v18m-9-9h18M904 173v22m-11-11h22"/>
+    <circle cx="926" cy="459" r="6"/><circle cx="284" cy="201" r="4"/>
+  </g>
+</svg>

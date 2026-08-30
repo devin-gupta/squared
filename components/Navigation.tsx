@@ -7,10 +7,13 @@ import Icon from "./Icon";
 export function Brand() {
   return (
     <span className="inline-flex items-center gap-3">
-      <span className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-accent text-white">
-        <span className="h-4 w-4 rounded-[3px] border-[1.5px] border-white" />
-        <span className="absolute left-[17px] top-[17px] h-3 w-3 rounded-[2px] border-[1.5px] border-white bg-accent" />
-      </span>
+      <img
+        src="/brand/mark.svg"
+        width="36"
+        height="36"
+        alt=""
+        className="h-9 w-9 shrink-0"
+      />
       <span className="text-xl font-semibold tracking-[-0.06em]">
         squared<span className="text-[#8c9e72]">.</span>
       </span>
