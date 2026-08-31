@@ -79,6 +79,10 @@ async function fixture(
         configurable: true,
         value: async () => reg,
       });
+      Object.defineProperty(navigator.serviceWorker, "register", {
+        configurable: true,
+        value: async () => reg,
+      });
     },
     { standalone, desktop, denied, key },
   );

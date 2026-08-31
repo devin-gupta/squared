@@ -11,7 +11,7 @@
     "test:trip-delete": "node --test tests/trip-delete.test.cjs",
     "test": "node --test tests/*.test.cjs",
     "check": "npm test && npm run build",
-    "test:browser": "node tests/browser/group-travel.cjs && node tests/browser/qr-layout.cjs && node tests/browser/device-options.cjs"
+    "test:browser": "node tests/browser/group-travel.cjs && node tests/browser/qr-layout.cjs && node tests/browser/device-options.cjs && node tests/browser/service-worker.cjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.3",

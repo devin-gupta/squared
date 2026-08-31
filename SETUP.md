@@ -368,6 +368,13 @@ native install action only after a click; iPhone/iPad users see Safari → Share
 Add to Home Screen instructions. iOS/iPadOS 16.4+ require launching the Home Screen
 app before enabling push. See [WebKit's requirements](https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/).
 
+The App Router explicitly registers the generated `/sw.js` on startup, without
+requesting notification permission. Enable notifications retries registration if
+needed. Do not rely on next-pwa 5's Pages Router registration injection or precache
+`app-build-manifest.json`: that internal build file returns 404 in production and
+prevents worker activation. CI tests actual worker registration and activation in
+a fresh Chromium browser in addition to the mocked WebKit notification UI flows.
+
 Production setup:
 
 1. Apply `supabase/migrations/006_push_notifications.sql` after 005. It adds private

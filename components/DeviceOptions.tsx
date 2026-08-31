@@ -10,6 +10,7 @@ import {
   subscriptionRequest,
 } from "@/lib/push/client";
 import { readPushOwner, writePushOwner } from "@/lib/push/device";
+import { ensureBackgroundWorker } from "@/lib/push/registration";
 interface InstallEvent extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: string }>;
@@ -32,6 +33,14 @@ export default function DeviceOptions() {
     [checking, setChecking] = useState(false),
     [error, setError] = useState("");
   useEffect(() => {
+    // Register silently; installation and notification permission stay opt-in.
+    if (
+      process.env.NODE_ENV === "production" &&
+      window.isSecureContext &&
+      "serviceWorker" in navigator
+    ) {
+      void ensureBackgroundWorker().catch(() => {});
+    }
     const media = window.matchMedia("(display-mode: standalone)");
     const update = () =>
       setInstalled(media.matches || !!(navigator as any).standalone);
@@ -130,20 +139,7 @@ export default function DeviceOptions() {
       const granted = await Notification.requestPermission();
       setPermission(granted);
       if (granted !== "granted") return;
-      const registration = await Promise.race([
-        navigator.serviceWorker.ready,
-        new Promise<never>((_, reject) =>
-          setTimeout(
-            () =>
-              reject(
-                new Error(
-                  "Reload Squared and try again; its background service is not ready.",
-                ),
-              ),
-            12000,
-          ),
-        ),
-      ]);
+      const registration = await ensureBackgroundWorker();
       subscription = await registration.pushManager.getSubscription();
       if (!subscription) {
         subscription = await registration.pushManager.subscribe({

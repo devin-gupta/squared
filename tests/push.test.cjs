@@ -317,8 +317,18 @@ test("push sender bounds delivery, drops expired endpoints, retries transient fa
   );
   await server.dispatchPush(alice);
   assert.equal(sent.length, 3);
-  assert(!JSON.stringify(sent.map((s) => s.p)).includes("Private receipt"));
-  assert(!JSON.stringify(sent.map((s) => s.p)).includes("123"));
+  // Assert the entire allowed payload, not digit substrings that can also
+  // occur inside a randomly generated trip/change UUID.
+  for (const message of sent) {
+    const source = jobs.find((job) => job.endpoint === message.s.endpoint);
+    assert.deepEqual(message.p, {
+      title: "Squared",
+      body: "Alice added an expense in Iceland.",
+      tripId: source.trip_id,
+      changeId: source.change_id,
+      recipientId: bob,
+    });
+  }
   assert.equal(sent[0].options.timeout, 5000);
   assert.equal(sent[0].options.vapidDetails.privateKey, "private");
   assert(

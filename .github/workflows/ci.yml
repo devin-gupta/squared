@@ -38,8 +38,8 @@ jobs:
         run: npm ci
       - name: Run regression tests and production build
         run: npm run check
-      - name: Install WebKit for mobile regression checks
-        run: npx playwright install --with-deps webkit
+      - name: Install browsers for mobile and real service worker checks
+        run: npx playwright install --with-deps webkit chromium
       - name: Check invitation, drafts, undo and sharing in a mobile browser
         run: |
           npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/squared-browser-server.log 2>&1 &
