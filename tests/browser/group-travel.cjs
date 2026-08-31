@@ -481,6 +481,11 @@ const json = (r, b, s = 200) =>
     // The next trip copies names only. This is the same destination used by the settlement CTA.
     await navigate(origin + "/?newTripFrom=" + trip.tripId);
     d = page.getByRole("dialog");
+    // The dialog's open effect initializes these controlled fields after mount.
+    // Read only after that initialization, rather than racing the first render.
+    await page.waitForFunction(
+      () => document.getElementById("trip-people")?.value === "Alex\nPriya",
+    );
     assert.equal(
       await d.getByLabel("Friends’ names (optional)").inputValue(),
       "Alex\nPriya",
