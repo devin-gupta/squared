@@ -16,7 +16,7 @@ export default function CameraButton({
       <input
         ref={input}
         type="file"
-        accept="image/jpeg,image/png,image/webp"
+        accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
         className="hidden"
         disabled={disabled}
         onChange={(e) => {

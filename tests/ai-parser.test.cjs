@@ -10,6 +10,7 @@ const normalize = moduleAt("lib/ai/normalize.ts", {
   "./amounts": amounts,
 });
 const schemas = moduleAt("lib/ai/schemas.ts", { zod: { z } });
+const memberResolution = moduleAt("lib/ai/members.ts");
 const prompts = moduleAt("lib/ai/prompts.ts", {
   "../categories": categories,
   "../currency/convert": currency,
@@ -49,6 +50,7 @@ function harness(result) {
         "./schemas": schemas,
         "./prompts": prompts,
         "./normalize": normalize,
+        "./members": memberResolution,
       },
       { process: { env: { OPENROUTER_API_KEY: "synthetic-test-key" } } },
     ),
@@ -130,6 +132,7 @@ test("rate limits remain actionable and never trigger another model call", async
       "./schemas": schemas,
       "./prompts": prompts,
       "./normalize": normalize,
+      "./members": memberResolution,
     },
     { process: { env: { OPENROUTER_API_KEY: "synthetic-test-key" } } },
   );
@@ -188,6 +191,7 @@ function fallbackHarness(primary, secondary, configured = true) {
         "./schemas": schemas,
         "./prompts": prompts,
         "./normalize": normalize,
+        "./members": memberResolution,
       },
       { process: { env } },
     ),

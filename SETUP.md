@@ -50,7 +50,7 @@ Receipt and booking images can be attached with the picker, pasted into the Add 
 
 For an opt-in live image evaluation, run `node scripts/evaluate-receipt.cjs /path/to/receipt.png 3`. This sends that image to the configured AI providers, including the paid fallback when enabled, but does not upload it to Supabase or write an expense. The script stops on unrecovered provider errors; mocked tests do not prove live extraction accuracy.
 - AI requests require a signed-in trip member. Keep both AI keys server-only and out of Git.
-- Receipt uploads support JPEG, PNG, or WebP up to 4 MB; HEIC must be converted before upload.
+- Receipt inputs support JPEG, PNG, WebP, HEIC, or HEIF. Apple images up to 25 MB are converted and compressed to an upload-ready JPEG in the browser; stored uploads are JPEG, PNG, or WebP up to 4 MB.
 - You can find your publishable key in Supabase Dashboard → Settings → API → Publishable key
 
 ## Step 2: Run Database Migration

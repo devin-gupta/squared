@@ -168,7 +168,7 @@ const json = (r, b, s = 200) =>
         quote: {
           currency: "ISK",
           rate: 0.00828,
-          date: "2026-08-30",
+          date: new Date().toISOString().slice(0, 10),
           provider: "Frankfurter",
         },
       }),

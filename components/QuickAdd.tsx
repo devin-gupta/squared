@@ -5,7 +5,8 @@ import { useDraftContext } from "./ExpenseDraftContext";
 import CameraButton from "./CameraButton";
 import Icon from "./Icon";
 import ExpenseProgress from "./ExpenseProgress";
-import { receiptFileError, transferredFiles } from "@/lib/receipts/files";
+import { receiptSourceFileError, transferredFiles } from "@/lib/receipts/files";
+import { prepareReceiptFile } from "@/lib/receipts/prepare";
 import type {
   ExpenseEntryProgress,
   ExpenseEntryResult,
@@ -72,6 +73,8 @@ export default function QuickAdd({
   const [dragging, setDragging] = useState(false);
   const dragDepth = useRef(0);
   const [submitting, setSubmitting] = useState(false);
+  const [converting, setConverting] = useState(false);
+  const conversionInFlight = useRef(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState<Extract<
     ExpenseEntryResult,
@@ -87,22 +90,43 @@ export default function QuickAdd({
     setImagePreview(url);
     return () => URL.revokeObjectURL(url);
   }, [imageFile]);
-  const attachFiles = (files: File[]) => {
-    if (busy || locked || inFlight.current || !files.length) return;
+  const attachFiles = async (files: File[]) => {
+    if (
+      busy ||
+      converting ||
+      conversionInFlight.current ||
+      locked ||
+      inFlight.current ||
+      !files.length
+    )
+      return;
     if (files.length !== 1) {
       setError(
         "Attach one image per expense. Your existing draft is unchanged.",
       );
       return;
     }
-    const message = receiptFileError(files[0]);
+    const message = receiptSourceFileError(files[0]);
     if (message) {
       setError(message);
       return;
     }
-    setImageFile(files[0]);
+    conversionInFlight.current = true;
+    setConverting(true);
     setError("");
-    setSaved(null);
+    try {
+      setImageFile(await prepareReceiptFile(files[0]));
+      setSaved(null);
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "This image couldn’t be prepared. Try another image.",
+      );
+    } finally {
+      conversionInFlight.current = false;
+      setConverting(false);
+    }
   };
   const reset = () => {
     setSaved(null);
@@ -110,7 +134,13 @@ export default function QuickAdd({
   };
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (inFlight.current || busy || (!input.trim() && !imageFile)) return;
+    if (
+      inFlight.current ||
+      conversionInFlight.current ||
+      busy ||
+      (!input.trim() && !imageFile)
+    )
+      return;
     inFlight.current = true;
     setSubmitting(true);
     setError("");
@@ -153,12 +183,12 @@ export default function QuickAdd({
         if (!event.dataTransfer.types.includes("Files")) return;
         event.preventDefault();
         dragDepth.current++;
-        if (!busy) setDragging(true);
+        if (!busy && !converting) setDragging(true);
       }}
       onDragOver={(event) => {
         if (!event.dataTransfer.types.includes("Files")) return;
         event.preventDefault();
-        event.dataTransfer.dropEffect = busy ? "none" : "copy";
+        event.dataTransfer.dropEffect = busy || converting ? "none" : "copy";
       }}
       onDragLeave={() => {
         dragDepth.current = Math.max(0, dragDepth.current - 1);
@@ -248,9 +278,11 @@ export default function QuickAdd({
             className="muted mt-2 text-xs"
             aria-live="polite"
           >
-            {dragging
-              ? "Drop one image to attach it."
-              : "Type an expense, or paste/drop a receipt or booking image. JPEG, PNG or WebP, up to 4 MB."}
+            {converting
+              ? "Converting Apple photo to JPEG…"
+              : dragging
+                ? "Drop one image to attach it."
+                : "Type an expense, or paste/drop a receipt or booking image. JPEG, PNG, WebP, HEIC or HEIF."}
           </p>
           {draftContext &&
             (input || imageFile || draftContext.draft?.parsed || locked) && (
@@ -325,11 +357,11 @@ export default function QuickAdd({
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
             <CameraButton
               onImageCapture={(file) => attachFiles([file])}
-              disabled={busy || locked}
+              disabled={busy || converting || locked}
             />
             <button
               type="submit"
-              disabled={!input.trim() && !imageFile}
+              disabled={converting || (!input.trim() && !imageFile)}
               className="btn-primary"
             >
               {draftContext?.offline

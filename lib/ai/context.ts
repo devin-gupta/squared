@@ -34,25 +34,25 @@ export async function requireAIContext(request: Request, tripId: unknown) {
       "Your sign-in expired. Please sign in again.",
       401,
     );
-  const { data: membership, error: membershipError } = await client
-    .from("trip_members")
-    .select("id")
-    .eq("trip_id", tripId)
-    .eq("user_id", user.id)
-    .maybeSingle();
-  if (membershipError || !membership)
-    throw new AIRequestError(
-      "You must belong to this trip to use AI entry.",
-      403,
-    );
   const { data: members, error } = await client
     .from("trip_members")
-    .select("display_name")
+    .select("display_name, user_id")
     .eq("trip_id", tripId);
-  if (error)
+  if (error) {
+    console.error("AI member lookup failed", {
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+    });
     throw new AIRequestError(
       "Couldn’t load trip members. Please try again.",
       503,
+    );
+  }
+  if (!members?.some((member) => member.user_id === user.id))
+    throw new AIRequestError(
+      "You must belong to this trip to use AI entry.",
+      403,
     );
   return {
     client,

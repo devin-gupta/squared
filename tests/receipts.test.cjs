@@ -122,17 +122,41 @@ test("ambiguous totals and inconsistent items require review rather than silent 
 });
 
 test("file validation is shared by paste, drop, picker and the server", () => {
-  const { receiptFileError, transferredFiles } = moduleAt(
+  const {
+    isHeicFile,
+    receiptFileError,
+    receiptSourceFileError,
+    transferredFiles,
+  } = moduleAt(
     "lib/receipts/files.ts",
   );
   assert.equal(receiptFileError({ type: "image/png", size: 1000 }), null);
+  assert.equal(
+    receiptSourceFileError({
+      type: "image/heic",
+      name: "photo.heic",
+      size: 1000,
+    }),
+    null,
+  );
+  assert.equal(
+    receiptSourceFileError({ type: "", name: "photo.HEIF", size: 1000 }),
+    null,
+  );
+  assert.equal(isHeicFile({ type: "image/heif", name: "photo" }), true);
+  assert.equal(isHeicFile({ type: "", name: "photo.heic" }), true);
   for (const file of [
     { type: "application/pdf", size: 10 },
-    { type: "image/heic", size: 10 },
     { type: "image/png", size: 0 },
     { type: "image/png", size: 4 * 1024 * 1024 + 1 },
   ])
     assert(receiptFileError(file));
+  assert(
+    receiptSourceFileError({
+      type: "image/heic",
+      size: 25 * 1024 * 1024 + 1,
+    }),
+  );
   const file = { type: "image/png", size: 10 };
   assert.equal(
     transferredFiles({
@@ -146,6 +170,45 @@ test("file validation is shared by paste, drop, picker and the server", () => {
     transferredFiles({ files: [], items: [{ kind: "string" }] }).length,
     0,
   );
+});
+
+test("unambiguous short member names resolve to exact trip display names", () => {
+  const { canonicalMemberName, canonicalizeParsedMembers } = moduleAt(
+    "lib/ai/members.ts",
+  );
+  const members = ["devin", "rodriguezjosue094", "nicole"];
+  assert.equal(canonicalMemberName("Josue", members), "rodriguezjosue094");
+  assert.equal(canonicalMemberName("NICOLE", members), "nicole");
+  assert.equal(canonicalMemberName("jo", members), undefined);
+  assert.equal(
+    canonicalMemberName("josue", ["josue-one", "josue-two"]),
+    undefined,
+  );
+  const parsed = canonicalizeParsedMembers(
+    {
+      description: "Groceries",
+      total_amount: 30,
+      currency: "USD",
+      payer_name: "Devin",
+      split_type: "equal",
+      adjustments: [{ user_name: "Josue", amount: 10 }],
+      line_items: [
+        {
+          description: "Meat",
+          amount: 30,
+          category: "food",
+          split_among: ["josue", "Nicole"],
+        },
+      ],
+    },
+    members,
+  );
+  assert.equal(parsed.payer_name, "devin");
+  assert.equal(parsed.adjustments[0].user_name, "rodriguezjosue094");
+  assert.deepEqual(Array.from(parsed.line_items[0].split_among), [
+    "rodriguezjosue094",
+    "nicole",
+  ]);
 });
 
 test("travel categories cover specific transport and common international costs", () => {
