@@ -6,7 +6,10 @@ const categories = moduleAt("lib/categories.ts");
 const { expenseEdits } = moduleAt("lib/transactions/edit.ts", {
   "../categories": categories,
 });
-const { personalSpending } = moduleAt("lib/statistics/personal.ts");
+const allocation = moduleAt("lib/transactions/allocation.ts");
+const { personalSpending } = moduleAt("lib/statistics/personal.ts", {
+  "@/lib/transactions/allocation": allocation,
+});
 const id = "33333333-3333-4333-8333-333333333333";
 const base = {
   id,

@@ -227,6 +227,7 @@ export default function DesignPreview({ screen }: { screen: string }) {
       {screen === "feed" ? (
         <ExpenseLedger
           transactions={transactions}
+          members={members}
           onEdit={edit}
           onDelete={(id) => {
             if (confirm("Delete this sample expense?"))

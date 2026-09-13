@@ -13,7 +13,7 @@ A minimalist, AI-powered Progressive Web App for tracking group trip expenses. S
 ### 📊 Comprehensive Ledger
 
 - **Search & Filter**: Quickly find transactions by description, payer, or amount
-- **CSV Export**: Export all transactions with date/time, payer, amount, and split type for spreadsheet analysis
+- **CSV Export**: Export expense details plus each member's paid, share, and net amounts for equal, custom, and receipt-item splits
 - **Real-time Updates**: See transactions appear instantly as they're added by any group member
 
 ### ✂️ Flexible Splitting

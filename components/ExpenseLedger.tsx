@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import TransactionCard, { DisplayTransaction, money } from "./TransactionCard";
 import Icon from "./Icon";
+import { expenseCsv } from "@/lib/transactions/export";
 
 export default function ExpenseLedger({
   transactions,
@@ -13,6 +14,7 @@ export default function ExpenseLedger({
   onEdit,
   onDelete,
   basePath = "",
+  members = [],
 }: {
   transactions: DisplayTransaction[];
   loading?: boolean;
@@ -21,6 +23,7 @@ export default function ExpenseLedger({
   onEdit?: (transaction: DisplayTransaction) => void;
   onDelete?: (id: string) => void;
   basePath?: string;
+  members?: Array<{ id: string; display_name: string }>;
 }) {
   const [query, setQuery] = useState("");
   const filtered = useMemo(
@@ -33,36 +36,8 @@ export default function ExpenseLedger({
     [transactions, query],
   );
   const exportCsv = () => {
-    const cell = (value: string) =>
-      `"${(/^[=+\-@\t\r]/.test(value) ? "'" : "") + value.replace(/"/g, '""')}"`;
-    const rows = [
-      [
-        "Date",
-        "Description",
-        "Paid by",
-        "Amount (USD)",
-        "Split",
-        "Original currency",
-        "Original amount",
-        "USD rate",
-        "Rate date",
-        "Rate provider",
-      ],
-      ...filtered.map((t) => [
-        t.created_at,
-        t.description,
-        t.payer?.display_name || "",
-        String(t.total_amount),
-        t.split_type,
-        t.currency_conversion?.original_currency || "USD",
-        String(t.currency_conversion?.original_amount ?? t.total_amount),
-        String(t.currency_conversion?.rate ?? 1),
-        t.currency_conversion?.rate_date || "",
-        t.currency_conversion?.provider || "",
-      ]),
-    ];
     const url = URL.createObjectURL(
-      new Blob([rows.map((r) => r.map(cell).join(",")).join("\n")], {
+      new Blob([expenseCsv(filtered, members)], {
         type: "text/csv;charset=utf-8;",
       }),
     );
@@ -84,7 +59,7 @@ export default function ExpenseLedger({
         </div>
         <button
           onClick={exportCsv}
-          disabled={loading || !!error || !filtered.length}
+          disabled={loading || !!error || !filtered.length || !members.length}
           className="btn-secondary"
         >
           Export CSV

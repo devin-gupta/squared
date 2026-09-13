@@ -163,6 +163,10 @@ export default function LiveFeed({ tripId }: LiveFeedProps) {
         onRetry={refetch}
         onEdit={setEditingTransaction}
         onDelete={handleDelete}
+        members={memberNames.map((member) => ({
+          id: member.id,
+          display_name: member.name,
+        }))}
       />
 
       <ExpenseHistory
