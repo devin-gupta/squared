@@ -10,7 +10,7 @@ export const siteUrl = new URL(
   process.env.NEXT_PUBLIC_SITE_URL || "https://squared-omega.vercel.app",
 );
 const description =
-  "Good trips. Clear tabs. Share expenses with your people and enjoy the time together.";
+  "Split group travel expenses with AI-assisted receipt entry, flexible shares, multiple currencies, and clear settlement totals.";
 const image = {
   url: "/brand/share-card-v2.png",
   width: 1200,
@@ -21,20 +21,20 @@ const image = {
 
 export const socialMetadata: Metadata = {
   metadataBase: siteUrl,
-  title: "Squared — Good trips. Clear tabs.",
+  title: "Squared — AI Travel Expense Splitter",
   description,
   applicationName: "Squared",
   openGraph: {
     type: "website",
     locale: "en_US",
     siteName: "Squared",
-    title: "Good trips. Clear tabs.",
+    title: "Squared — AI Travel Expense Splitter",
     description,
     images: [image],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Good trips. Clear tabs.",
+    title: "Squared — AI Travel Expense Splitter",
     description,
     images: [image],
   },
@@ -48,7 +48,9 @@ export function homeMetadata(
   // Next 15's OG resolver drops queries on root URLs. The /trip/CODE preview
   // preserves both the code and the optional public display label.
   const url = new URL(code ? invitePath(code, name)! : "/", siteUrl);
-  const title = code ? invitePreviewTitle(name) : "Good trips. Clear tabs.";
+  const title = code
+    ? invitePreviewTitle(name)
+    : "Squared — AI Travel Expense Splitter";
   const detail = code ? inviteDescription : description;
   // Only the sender's display label is exposed; no database/private-data lookup.
   // Keep the invitation in og:url so preview taps never lose the join context.
@@ -57,6 +59,7 @@ export function homeMetadata(
     description: detail,
     openGraph: { ...socialMetadata.openGraph, title, description: detail, url },
     twitter: { ...socialMetadata.twitter, title, description: detail },
+    ...(!code ? { alternates: { canonical: "/" } } : {}),
     ...(rawCode !== undefined
       ? { robots: { index: false, follow: false } }
       : {}),

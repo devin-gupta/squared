@@ -38,7 +38,7 @@ test("home and malformed invite previews never echo arbitrary query input", () =
   ]) {
     const data = homeMetadata(input);
     assert.equal(data.openGraph.url.href, "https://squared-omega.vercel.app/");
-    assert.equal(data.openGraph.title, "Good trips. Clear tabs.");
+    assert.equal(data.openGraph.title, "Squared — AI Travel Expense Splitter");
     assert(!JSON.stringify(data).includes("attacker"));
   }
 });

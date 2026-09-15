@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import HomePage from "@/components/HomePage";
 import { homeMetadata } from "@/lib/metadata";
+import { softwareApplicationJsonLd } from "@/lib/seo";
 
 export async function generateMetadata({
   searchParams,
@@ -12,5 +13,18 @@ export async function generateMetadata({
 }
 
 export default function Page() {
-  return <HomePage />;
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(softwareApplicationJsonLd).replace(
+            /</g,
+            "\\u003c",
+          ),
+        }}
+      />
+      <HomePage />
+    </>
+  );
 }
