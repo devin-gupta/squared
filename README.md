@@ -30,6 +30,7 @@ A minimalist, AI-powered Progressive Web App for tracking group trip expenses. S
 ### 📱 Progressive Web App
 
 - **Installable**: Add to home screen on iOS and Android
+- **iPhone Share Sheet**: Opt into an “Add to Squared” Apple Shortcut to send a photo from Apple Photos straight to the active trip without opening Squared
 - **Offline Shell**: Cached pages may be available offline; saving and syncing expenses require a connection
 - **Native Feel**: Standalone app experience with custom theme and icons
 

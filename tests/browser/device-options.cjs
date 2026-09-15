@@ -9,7 +9,9 @@ async function fixture(
 ) {
   const t = await setup(browser, { signedIn: true, member: true });
   const actions = [];
+  const shortcutActions = [];
   let subscribed = false;
+  let shortcutConnected = false;
   await t.context.addInitScript(
     ({ standalone, desktop, denied, key }) => {
       window.pushTest = {
@@ -110,6 +112,33 @@ async function fixture(
       body: JSON.stringify({ enabled: subscribed }),
     });
   });
+  await t.context.route(origin + "/api/shortcut/config*", (r) => {
+    const method = r.request().method();
+    assert.match(r.request().headers().authorization, /^Bearer /);
+    if (method === "POST" || method === "DELETE") {
+      const body = r.request().postDataJSON();
+      assert.equal(body.tripId, "22222222-2222-4222-8222-222222222222");
+      shortcutActions.push(method);
+      shortcutConnected = method === "POST";
+    }
+    return r.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(
+        method === "POST"
+          ? {
+              token: "sqr_" + "s".repeat(43),
+              uploadUrl: origin + "/api/shortcut/receipt",
+              tripName: "Invited Yosemite Weekend",
+            }
+          : {
+              enabled: true,
+              connected: shortcutConnected,
+              tripName: "Invited Yosemite Weekend",
+            },
+      ),
+    });
+  });
   await t.page.goto(origin);
   await t.page
     .getByRole("button", { name: "App & notifications", exact: true })
@@ -118,7 +147,7 @@ async function fixture(
   assert.equal(await t.page.getByRole("dialog").count(), 0);
   assert.equal(await t.page.evaluate(() => pushTest.permissionCalls), 0);
   assert.deepEqual(actions, []);
-  return { ...t, actions };
+  return { ...t, actions, shortcutActions };
 }
 (async () => {
   const browser = await webkit.launch();
@@ -130,6 +159,32 @@ async function fixture(
       .click();
     let d = t.page.getByRole("dialog");
     await d.getByText("Tap Share, then", { exact: false }).waitFor();
+    await d
+      .getByRole("button", { name: "Connect Add to Squared", exact: true })
+      .click();
+    await d
+      .getByRole("button", {
+        name: "Copy Shortcut setup details",
+        exact: true,
+      })
+      .waitFor();
+    await d.getByText("Get Contents of URL", { exact: false }).waitFor();
+    assert.deepEqual(t.shortcutActions, ["POST"]);
+    await d.getByRole("button", { name: "Close dialog", exact: true }).click();
+    await t.page
+      .getByRole("button", { name: "App & notifications", exact: true })
+      .click();
+    d = t.page.getByRole("dialog");
+    await d
+      .getByRole("button", {
+        name: "Disconnect Add to Squared",
+        exact: true,
+      })
+      .click();
+    await d
+      .getByRole("button", { name: "Connect Add to Squared", exact: true })
+      .waitFor();
+    assert.deepEqual(t.shortcutActions, ["POST", "DELETE"]);
     assert.equal(
       await d
         .getByRole("button", { name: "Enable notifications", exact: true })
@@ -241,7 +296,7 @@ async function fixture(
     await t.context.close();
     t = null;
     console.log(
-      "PASS device options: no automatic prompts; iOS installation guidance; explicit opt-in, denied/failed states, opt-out, sign-out cleanup, native install only on click, mobile layout and accessibility. All push services mocked.",
+      "PASS device options: no automatic prompts; iOS installation and Add to Squared share-sheet guidance; secure shortcut connect/revoke; explicit notification opt-in, denied/failed states, opt-out, sign-out cleanup, native install only on click, mobile layout and accessibility. All external services mocked.",
     );
   } finally {
     if (t) await t.context.close();

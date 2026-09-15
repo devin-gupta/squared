@@ -426,3 +426,27 @@ The unit/SQL and browser suites use synthetic subscriptions and mocked sends.
 They do not send real notifications or open permission dialogs on your device.
 A real iPhone delivery check still requires a user to install the app and explicitly
 opt in. Do not send test pushes to live members without their permission.
+
+### Add to Squared iPhone Shortcut
+
+Apply `supabase/migrations/007_shortcut_receipts.sql` after 006. It creates
+revocable, 180-day, per-account/per-trip upload credentials and two service-only
+functions. Raw upload keys are shown once and never stored in the database. The
+existing `SUPABASE_SERVICE_ROLE_KEY` is required; no additional environment
+variable is needed.
+
+A signed-in member opens a trip, then uses **App & notifications → Connect Add to
+Squared**. The screen supplies the one-time values and four Apple Shortcuts actions
+needed to create an **Add to Squared** image Share Sheet action. This remains a web
+app: the Shortcut sends the selected Apple Photos image directly to the HTTPS API,
+so Squared does not need to open. The person who connected it is recorded as payer,
+and the receipt is split equally among all current trip members. Foreign-language
+line items are returned in English and foreign amounts use the normal USD conversion
+path.
+
+The Shortcut must remain active until its success notification appears. Ambiguous
+totals or currencies are rejected with a prompt to review the receipt in Squared;
+financial data is never guessed silently. Identical photo retries are idempotent,
+credentials are limited to 20 attempts per hour, leaving the trip invalidates the
+credential, and **Disconnect Add to Squared** revokes it. Tests mock OCR, storage,
+push, and HTTP calls and do not add receipts to live trips.

@@ -11,6 +11,7 @@ import {
 } from "@/lib/push/client";
 import { readPushOwner, writePushOwner } from "@/lib/push/device";
 import { ensureBackgroundWorker } from "@/lib/push/registration";
+import ShortcutSetup from "./ShortcutSetup";
 interface InstallEvent extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: string }>;
@@ -314,6 +315,7 @@ export default function DeviceOptions() {
               </>
             )}
           </section>
+          {user && <ShortcutSetup active={open} />}
           {error && (
             <p role="alert" className="text-sm text-red-800">
               {error}
