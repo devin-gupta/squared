@@ -31,7 +31,7 @@ export default function PublicLanding({
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-4">
               <button onClick={onOpenAuth} className="btn-primary">
-                Get started free
+                Get started
                 <Icon name="arrow" width="17" />
               </button>
               <Link
