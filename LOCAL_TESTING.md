@@ -70,7 +70,8 @@ A real successful email delivery/sign-in still needs user testing. Browser stora
 
 Statistics and the category chart share one authenticated request. The API verifies
 the signed-in account and its trip membership, keeps database row-level security,
-and derives “You Paid” from that account's member ID. Only finalized expenses count.
+and derives “You’ve paid for” and “You spent” from that account's member ID.
+Only finalized expenses count.
 Failed requests show an error with retry; an empty trip legitimately shows zeros.
 Statistics remain visible even when there are no outstanding settlements.
 On desktop, the compact Statistics card aligns with the top of the payment panel

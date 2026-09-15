@@ -8,9 +8,13 @@ import type { TripStatistics } from "@/lib/statistics/calculate";
 
 interface SpendingStatsProps {
   tripId: string | null;
+  onPersonalTotals?: (totals: { paid: number; spent: number } | null) => void;
 }
 
-export default function SpendingStats({ tripId }: SpendingStatsProps) {
+export default function SpendingStats({
+  tripId,
+  onPersonalTotals,
+}: SpendingStatsProps) {
   const [stats, setStats] = useState<TripStatistics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -19,6 +23,7 @@ export default function SpendingStats({ tripId }: SpendingStatsProps) {
   useEffect(() => {
     setStats(null);
     setError(null);
+    onPersonalTotals?.(null);
     if (!tripId) {
       setLoading(false);
       return;
@@ -45,7 +50,13 @@ export default function SpendingStats({ tripId }: SpendingStatsProps) {
           );
         }
         const { statistics } = await response.json();
-        if (!controller.signal.aborted) setStats(statistics);
+        if (!controller.signal.aborted) {
+          setStats(statistics);
+          onPersonalTotals?.({
+            paid: statistics.userPaid,
+            spent: statistics.userSpent,
+          });
+        }
       } catch (error) {
         if (!controller.signal.aborted) {
           setError(
@@ -61,7 +72,7 @@ export default function SpendingStats({ tripId }: SpendingStatsProps) {
 
     fetchStats();
     return () => controller.abort();
-  }, [tripId, attempt]);
+  }, [tripId, attempt, onPersonalTotals]);
 
   if (!tripId) return null;
 
@@ -104,7 +115,11 @@ export default function SpendingStats({ tripId }: SpendingStatsProps) {
               value={stats.averagePerTransaction}
               isCurrency
             />
-            <StatCard label="You Paid" value={stats.userSpending} isCurrency />
+            <StatCard
+              label="You’ve paid for"
+              value={stats.userPaid}
+              isCurrency
+            />
           </div>
         ) : null}
       </section>

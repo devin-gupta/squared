@@ -40,12 +40,14 @@ const expenses = [
     status: "finalized",
     trip_id: tripId,
     line_items: [{ category: "Food", amount: "120.50" }],
+    split_type: "equal",
   },
   {
     total_amount: 79.5,
     payer_id: "member-bob",
     status: "finalized",
     trip_id: tripId,
+    split_type: "equal",
   },
   {
     total_amount: 900,
@@ -64,7 +66,12 @@ const expenses = [
 function fixture(options = {}) {
   const calls = [],
     clients = [];
-  const calculation = moduleAt("lib/statistics/calculate.ts", {});
+  const allocation = require("./load-module.cjs")(
+    "lib/transactions/allocation.ts",
+  );
+  const calculation = moduleAt("lib/statistics/calculate.ts", {
+    "@/lib/transactions/allocation": allocation,
+  });
   const route = moduleAt("app/api/trips/[id]/statistics/route.ts", {
     "next/server": {
       NextResponse: { json: (body, init) => Response.json(body, init) },
@@ -101,16 +108,22 @@ function fixture(options = {}) {
                 return Response.json([]);
               if (url.pathname === "/rest/v1/trip_members") {
                 assert.equal(url.searchParams.get("trip_id"), "eq." + tripId);
-                assert.equal(url.searchParams.get("user_id"), "eq." + user);
-                assert.equal(url.searchParams.has("display_name"), false);
                 if (options.memberError)
                   return Response.json(
                     { message: "Unavailable" },
                     { status: 503 },
                   );
-                return Response.json(
-                  options.nonmember ? [] : [{ id: "member-" + user }],
-                );
+                if (url.searchParams.has("user_id")) {
+                  assert.equal(url.searchParams.get("user_id"), "eq." + user);
+                  assert.equal(url.searchParams.has("display_name"), false);
+                  return Response.json(
+                    options.nonmember ? [] : [{ id: "member-" + user }],
+                  );
+                }
+                return Response.json([
+                  { id: "member-alice", display_name: "Alice" },
+                  { id: "member-bob", display_name: "Bob" },
+                ]);
               }
               assert.equal(url.pathname, "/rest/v1/transactions");
               if (options.transactionError)
@@ -168,7 +181,8 @@ test("statistics carries the verified session through every query and totals onl
     totalSpent: 200,
     transactionCount: 2,
     averagePerTransaction: 100,
-    userSpending: 120.5,
+    userPaid: 120.5,
+    userSpent: 100,
     categoryBreakdown: [
       { category: "Food", amount: 120.5, percentage: 60.25 },
       { category: "Other", amount: 79.5, percentage: 39.75 },
@@ -180,14 +194,16 @@ test("statistics carries the verified session through every query and totals onl
   assert.equal(f.clients[0].auth.autoRefreshToken, false);
 });
 
-test("You Paid follows the verified account despite a conflicting display name, with isolated concurrent sessions", async () => {
+test("personal paid and spent totals follow the verified account despite a conflicting display name", async () => {
   const f = fixture();
   const [alice, bob] = await Promise.all([
     f.run({ userName: "Bob" }),
     f.run({ token: "bob-session", userName: "Alice" }),
   ]);
-  assert.equal(alice.body.statistics.userSpending, 120.5);
-  assert.equal(bob.body.statistics.userSpending, 79.5);
+  assert.equal(alice.body.statistics.userPaid, 120.5);
+  assert.equal(alice.body.statistics.userSpent, 100);
+  assert.equal(bob.body.statistics.userPaid, 79.5);
+  assert.equal(bob.body.statistics.userSpent, 100);
   assert.equal(f.clients.length, 2);
 });
 
@@ -198,7 +214,8 @@ test("only a successfully loaded empty trip returns zero statistics", async () =
     totalSpent: 0,
     transactionCount: 0,
     averagePerTransaction: 0,
-    userSpending: 0,
+    userPaid: 0,
+    userSpent: 0,
     categoryBreakdown: [],
   });
 });

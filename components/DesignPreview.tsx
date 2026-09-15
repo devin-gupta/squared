@@ -242,6 +242,16 @@ export default function DesignPreview({ screen }: { screen: string }) {
           currentMember={{ id: members[0].id, name: members[0].display_name }}
           tripId={trip.id}
           tripName={trip.name}
+          personalTotals={(() => {
+            const personal = personalSpending(
+              transactions,
+              members,
+              members[0].id,
+            );
+            return personal
+              ? { paid: personal.paid, spent: personal.share }
+              : null;
+          })()}
         />
       ) : (
         <>

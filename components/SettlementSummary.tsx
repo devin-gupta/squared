@@ -29,6 +29,7 @@ export default function SettlementSummary({
   currentMember,
   tripId,
   tripName,
+  personalTotals,
   statistics,
 }: {
   settlements: Settlement[];
@@ -39,6 +40,7 @@ export default function SettlementSummary({
   currentMember?: SettlementMember | null;
   tripId?: string | null;
   tripName?: string;
+  personalTotals?: { paid: number; spent: number } | null;
   statistics?: ReactNode;
 }) {
   const storageKey = `squared:venmo:${basePath || "app"}:${tripId || "trip"}`;
@@ -54,6 +56,17 @@ export default function SettlementSummary({
   const totals = currentMember
     ? settlementTotals(settlements, currentMember)
     : null;
+  const paid = personalTotals
+    ? Math.round(personalTotals.paid * 100) / 100
+    : null;
+  const spent = personalTotals
+    ? Math.round(personalTotals.spent * 100) / 100
+    : null;
+  const personalNet =
+    paid !== null && spent !== null
+      ? Math.round((paid - spent) * 100) / 100
+      : null;
+  const displayedNet = personalNet ?? totals?.net ?? 0;
   const note = tripName ? `Squared: ${tripName}` : "Squared trip settlement";
   const showPaymentDetails =
     !loading && !error && hasTrip && settlements.length > 0;
@@ -189,45 +202,48 @@ export default function SettlementSummary({
           <section aria-label="Your settlement totals" className="mb-6">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               <div className="panel p-5">
-                <p className="text-xs text-[#5e6b5f]">You owe</p>
+                <p className="text-xs text-[#5e6b5f]">You’ve paid for</p>
                 <p className="my-3 text-2xl font-semibold tabular-nums">
-                  {money(totals.outgoing)}
+                  {paid === null ? "—" : money(paid)}
                 </p>
                 <p className="text-xs text-[#5e6b5f]">
-                  {totals.outgoingCount} outgoing{" "}
-                  {totals.outgoingCount === 1 ? "transfer" : "transfers"}
+                  Trip expenses you covered
                 </p>
               </div>
               <div className="panel p-5">
-                <p className="text-xs text-[#5e6b5f]">You’re owed</p>
+                <p className="text-xs text-[#5e6b5f]">You spent</p>
                 <p className="my-3 text-2xl font-semibold tabular-nums">
-                  {money(totals.incoming)}
+                  {spent === null ? "—" : money(spent)}
                 </p>
                 <p className="text-xs text-[#5e6b5f]">
-                  {totals.incomingCount} incoming{" "}
-                  {totals.incomingCount === 1 ? "transfer" : "transfers"}
+                  Your share of trip expenses
                 </p>
               </div>
               <div className="col-span-2 rounded-2xl bg-accent p-5 text-white sm:col-span-1">
                 <p className="text-xs text-[#d4e1cf]">Net owed</p>
                 <p className="my-3 text-2xl font-semibold tabular-nums">
-                  {totals.net > 0 ? "+" : totals.net < 0 ? "−" : ""}
-                  {money(Math.abs(totals.net))}
+                  {displayedNet > 0 ? "+" : displayedNet < 0 ? "−" : ""}
+                  {money(Math.abs(displayedNet))}
                 </p>
                 <p className="text-xs text-[#d4e1cf]">
-                  {totals.net > 0
+                  {displayedNet > 0
                     ? "You’ll get this back"
-                    : totals.net < 0
+                    : displayedNet < 0
                       ? "You still need to pay this"
                       : "You’re all square"}
                 </p>
               </div>
             </div>
             <p className="muted mt-3 text-xs">
-              {money(totals.incoming)} incoming − {money(totals.outgoing)}{" "}
-              outgoing = {totals.net < 0 ? "−" : ""}
-              {money(Math.abs(totals.net))} net. Totals sum the transfers
-              involving you below.
+              {paid === null || spent === null ? (
+                "Loading your personal spending totals…"
+              ) : (
+                <>
+                  {money(paid)} paid for − {money(spent)} spent ={" "}
+                  {displayedNet < 0 ? "−" : ""}
+                  {money(Math.abs(displayedNet))} net owed.
+                </>
+              )}
             </p>
           </section>
         ) : (

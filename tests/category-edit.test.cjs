@@ -212,9 +212,11 @@ test("missing migration, access rejection and version conflicts preserve the exp
   }
 });
 test("statistics count an expense-level category once while receipt item categories remain primary", async () => {
-  const { calculateStatistics } = moduleAt("lib/statistics/calculate.ts");
+  const { calculateStatistics } = moduleAt("lib/statistics/calculate.ts", {
+    "@/lib/transactions/allocation": allocation,
+  });
   const client = {
-    from() {
+    from(table) {
       return {
         select() {
           return this;
@@ -232,7 +234,20 @@ test("statistics count an expense-level category once while receipt item categor
               line_items: [{ amount: 20, category: "gas" }],
             },
           ],
+          error: null,
         }),
+        then(resolve) {
+          return Promise.resolve({
+            data:
+              table === "trip_members"
+                ? [
+                    { id: "sam", display_name: "Sam" },
+                    { id: "alex", display_name: "Alex" },
+                  ]
+                : [],
+            error: null,
+          }).then(resolve);
+        },
       };
     },
   };

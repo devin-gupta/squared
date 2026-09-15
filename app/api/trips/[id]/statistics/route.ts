@@ -51,7 +51,7 @@ export async function GET(
       );
     }
 
-    // Resolve "You Paid" from the verified account, never a supplied display name.
+    // Resolve personal totals from the verified account, never a supplied name.
     const { data: member, error: memberError } = await client
       .from("trip_members")
       .select("id")

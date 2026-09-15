@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useState, useEffect } from "react";
 import SettlementSummary from "./SettlementSummary";
 import { SettlementMember } from "@/lib/settlement/transfers";
 import { supabase } from "@/lib/supabase/client";
@@ -29,8 +29,19 @@ export default function SettlementView({
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [personalTotals, setPersonalTotals] = useState<{
+    paid: number;
+    spent: number;
+  } | null>(null);
+  const handlePersonalTotals = useCallback(
+    (totals: { paid: number; spent: number } | null) => {
+      setPersonalTotals(totals);
+    },
+    [],
+  );
 
   useEffect(() => {
+    setPersonalTotals(null);
     if (!tripId) {
       setLoading(false);
       return;
@@ -100,8 +111,15 @@ export default function SettlementView({
         loading={loading}
         error={error}
         hasTrip={!!tripId}
+        personalTotals={personalTotals}
         statistics={
-          tripId ? <SpendingStats key={tripId} tripId={tripId} /> : null
+          tripId ? (
+            <SpendingStats
+              key={tripId}
+              tripId={tripId}
+              onPersonalTotals={handlePersonalTotals}
+            />
+          ) : null
         }
       />
     </>
