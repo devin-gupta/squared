@@ -39,6 +39,10 @@ test("home and malformed invite previews never echo arbitrary query input", () =
     const data = homeMetadata(input);
     assert.equal(data.openGraph.url.href, "https://squared-omega.vercel.app/");
     assert.equal(data.openGraph.title, "Squared — AI Travel Expense Splitter");
+    assert.equal(
+      data.verification.google,
+      "rPs0rHDOm2C3Pb8c2ZSsJ30zhjfdjKQ6uOpT9XgZ-Nc",
+    );
     assert(!JSON.stringify(data).includes("attacker"));
   }
 });

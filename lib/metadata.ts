@@ -57,6 +57,9 @@ export function homeMetadata(
   return {
     title: code ? `${title} — Squared` : socialMetadata.title,
     description: detail,
+    verification: {
+      google: "rPs0rHDOm2C3Pb8c2ZSsJ30zhjfdjKQ6uOpT9XgZ-Nc",
+    },
     openGraph: { ...socialMetadata.openGraph, title, description: detail, url },
     twitter: { ...socialMetadata.twitter, title, description: detail },
     ...(!code ? { alternates: { canonical: "/" } } : {}),
