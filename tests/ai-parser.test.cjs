@@ -84,6 +84,46 @@ test("image parser sends the note and correct MIME to a pinned free vision model
   assert.match(req.messages[1].content[0].text, /Sam paid, split equally/);
   assert.equal(h.requests.length, 1);
 });
+test("image parser requests English line items for foreign-language receipts without altering printed evidence", async () => {
+  const h = harness(
+    JSON.stringify({
+      description: "Dinner — Norðurljós",
+      amount_text: "3.190 ISK",
+      total_amount: 3.19,
+      currency: "ISK",
+      split_type: "equal",
+      line_items: [
+        {
+          description: "Lamb soup",
+          amount_text: "2.490 ISK",
+          amount: 2.49,
+          category: "food",
+        },
+        {
+          description: "Coffee",
+          amount_text: "700 ISK",
+          amount: 700,
+          category: "food",
+        },
+      ],
+    }),
+  );
+  const result = await h.parser.parseReceiptImage("icelandic-receipt");
+  assert.equal(result.description, "Dinner — Norðurljós");
+  assert.deepEqual(
+    Array.from(result.line_items, (item) => [item.description, item.amount]),
+    [
+      ["Lamb soup", 2490],
+      ["Coffee", 700],
+    ],
+  );
+  assert.equal(result.amount_text, "3.190 ISK");
+  const systemPrompt = h.requests[0].messages[0].content;
+  assert.match(systemPrompt, /receipts in any source language/);
+  assert.match(systemPrompt, /line-item names into concise natural English/);
+  assert.match(systemPrompt, /Preserve proper names/);
+  assert.match(systemPrompt, /Never translate or alter printed amount_text/);
+});
 test("a missing image currency requires selection while ordinary text retains its USD default", async () => {
   const { currency: ignored, ...withoutCurrency } = booking;
   const h = harness(JSON.stringify(withoutCurrency));
@@ -92,6 +132,35 @@ test("a missing image currency requires selection while ordinary text retains it
     (await h.parser.parseTransactionText("Car rental $100")).currency,
     "USD",
   );
+});
+test("custom split prompt defines percentage, fraction, ratio, ordering and rounding behavior", async () => {
+  const h = harness(
+    JSON.stringify({
+      description: "Custom group expense",
+      total_amount: 80,
+      currency: "USD",
+      split_type: "custom",
+      adjustments: [
+        { user_name: "Sam", amount: 20 },
+        { user_name: "Alex", amount: 30 },
+        { user_name: "Priya", amount: 30 },
+      ],
+    }),
+  );
+  const result = await h.parser.parseTransactionText(
+    "Members in order: Sam, Alex, Priya. Split 80 as 1/4th, 3/8th, 3/8th.",
+    ["Sam", "Alex", "Priya"],
+  );
+  assert.deepEqual(
+    Array.from(result.adjustments, (share) => share.amount),
+    [20, 30, 30],
+  );
+  const systemPrompt = h.requests[0].messages[0].content;
+  assert.match(systemPrompt, /percentages, fractions/);
+  assert.match(systemPrompt, /or ratios/);
+  assert.match(systemPrompt, /1\/4th, 3\/8th, 3\/8th/);
+  assert.match(systemPrompt, /supplied member order/);
+  assert.match(systemPrompt, /rounding remainder/);
 });
 test("malformed and schema-invalid AI output fail safely, with no paid fallback or retry", async () => {
   for (const content of ["not JSON", "{}"]) {

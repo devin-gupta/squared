@@ -4,6 +4,10 @@ import { useState, useEffect, useId } from "react";
 import { motion } from "framer-motion";
 import { LineItem } from "@/types/transaction";
 import { CATEGORIES, normalizeCategory } from "@/lib/categories";
+import {
+  splitIncludesMember,
+  toggleSplitMember,
+} from "@/lib/transactions/participants";
 
 interface ReceiptLineItemEditorProps {
   lineItems: LineItem[];
@@ -37,31 +41,9 @@ export default function ReceiptLineItemEditor({
 
   const handleMemberToggle = (itemIndex: number, memberId: string) => {
     const item = editedItems[itemIndex];
-    const currentSplit = item.split_among || [];
-    // Handle both IDs and names - check if memberId or member name matches
-    const member = members.find((m) => m.id === memberId);
-    const memberName = member?.name;
-
-    const isIncluded = currentSplit.some(
-      (idOrName) => idOrName === memberId || idOrName === memberName,
-    );
-
-    const newSplit = isIncluded
-      ? currentSplit.filter(
-          (idOrName) => idOrName !== memberId && idOrName !== memberName,
-        )
-      : [
-          ...currentSplit.filter((idOrName) => {
-            // Remove any old names/IDs for this member
-            const existingMember = members.find(
-              (m) => m.id === idOrName || m.name === idOrName,
-            );
-            return !existingMember || existingMember.id !== memberId;
-          }),
-          memberId,
-        ];
-
-    handleItemChange(itemIndex, { split_among: newSplit });
+    handleItemChange(itemIndex, {
+      split_among: toggleSplitMember(item.split_among, members, memberId),
+    });
   };
 
   const handleRemoveItem = (index: number) => {
@@ -176,19 +158,19 @@ export default function ReceiptLineItemEditor({
 
             <div className="mb-2">
               <label className="block text-xs text-accent/70 mb-2">
-                Split Among (leave empty to split among all)
+                Split among
               </label>
               <div className="flex flex-wrap gap-2">
                 {members.map((member) => {
-                  // Check if member is selected (by ID or name)
-                  const isSelected = item.split_among?.some(
-                    (idOrName) =>
-                      idOrName === member.id || idOrName === member.name,
+                  const isSelected = splitIncludesMember(
+                    item.split_among,
+                    member,
                   );
                   return (
                     <button
                       key={member.id}
                       type="button"
+                      aria-pressed={isSelected}
                       onClick={() => handleMemberToggle(index, member.id)}
                       className={`px-3 py-1 text-xs rounded-full border transition-colors ${
                         isSelected

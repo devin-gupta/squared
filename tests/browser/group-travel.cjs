@@ -173,6 +173,40 @@ const json = (r, b, s = 200) =>
         },
       }),
     );
+    await t.context.route(origin + "/api/ai/parse", (r) => {
+      const text = r.request().postDataJSON().text;
+      if (text.includes("1/4th, 3/8th, 3/8th"))
+        return json(r, {
+          parsed: {
+            description: "Custom group expense",
+            total_amount: 100,
+            currency: "USD",
+            payer_name: "Sam",
+            split_type: "custom",
+            adjustments: [
+              { user_name: "Sam", amount: 25 },
+              { user_name: "Alex", amount: 37.5 },
+              { user_name: "Priya", amount: 37.5 },
+            ],
+          },
+        });
+      return json(r, {
+        parsed: {
+          description: "AI equal dinner",
+          total_amount: 9000,
+          currency: "ISK",
+          payer_name: "Sam",
+          split_type: "equal",
+          line_items: [
+            {
+              description: "Group dinner",
+              amount: 9000,
+              category: "food",
+            },
+          ],
+        },
+      });
+    });
     await t.context.route(origin + "/api/transactions/*", async (r) => {
       apiWrites++;
       try {
@@ -476,6 +510,112 @@ const json = (r, b, s = 200) =>
     );
     console.log(
       "PASS deletion undo restores the original expense identity and allocation",
+    );
+
+    // AI uses an omitted split list as the compact representation of
+    // "everyone". The review UI must show that truthfully, and toggling one
+    // person must exclude only that person rather than selecting only them.
+    await page
+      .getByRole("button", { name: "New expense", exact: true })
+      .click();
+    d = page.getByRole("dialog");
+    await d
+      .getByLabel("Describe your expense", { exact: true })
+      .fill("Dinner was 9000 ISK, Sam paid, split equally");
+    await d.getByRole("button", { name: "Add expense", exact: true }).click();
+    d = page.getByRole("dialog");
+    const splitButton = (name) =>
+      d.getByRole("button", { name, exact: true });
+    for (const name of ["Sam", "Alex", "Priya"])
+      assert.equal(await splitButton(name).getAttribute("aria-pressed"), "true");
+    await splitButton("Priya").click();
+    assert.equal(await splitButton("Sam").getAttribute("aria-pressed"), "true");
+    assert.equal(await splitButton("Alex").getAttribute("aria-pressed"), "true");
+    assert.equal(
+      await splitButton("Priya").getAttribute("aria-pressed"),
+      "false",
+    );
+    await splitButton("Priya").click();
+    for (const name of ["Sam", "Alex", "Priya"])
+      assert.equal(await splitButton(name).getAttribute("aria-pressed"), "true");
+    await d.getByRole("button", { name: "Save", exact: true }).click();
+    await visible();
+    const aiExpense = (
+      await db.query(
+        "SELECT * FROM transactions WHERE description='AI equal dinner'",
+      )
+    ).rows[0];
+    assert(aiExpense);
+    assert.deepEqual(aiExpense.line_items[0].split_among || [], []);
+    console.log(
+      "PASS AI equal split visibly defaults to everyone and participant toggles are literal",
+    );
+
+    await page
+      .getByRole("button", { name: "New expense", exact: true })
+      .click();
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: "Enter manually", exact: true })
+      .click();
+    d = page.getByRole("dialog");
+    await d
+      .getByLabel("Description", { exact: true })
+      .first()
+      .fill("Fractional custom split");
+    await d.getByLabel("Amount (ISK)", { exact: true }).fill("100");
+    await d.getByLabel("Currency", { exact: true }).selectOption("USD");
+    await d.getByLabel("Paid By", { exact: true }).selectOption("Sam");
+    await d.getByRole("radio", { name: "Custom", exact: true }).check();
+    await d
+      .getByRole("button", {
+        name: "Describe with amounts, % or fractions",
+        exact: true,
+      })
+      .click();
+    await d
+      .getByLabel(/For example: Alex owes/)
+      .fill("breakdown with 1/4th, 3/8th, 3/8th");
+    await d
+      .getByRole("button", { name: "Apply suggested shares", exact: true })
+      .click();
+    await page.waitForFunction(
+      () => document.querySelector('[aria-label="Sam share"]')?.value === "25",
+    );
+    assert.equal(
+      await d.getByLabel("Sam share", { exact: true }).inputValue(),
+      "25",
+    );
+    assert.equal(
+      await d.getByLabel("Alex share", { exact: true }).inputValue(),
+      "37.5",
+    );
+    assert.equal(
+      await d.getByLabel("Priya share", { exact: true }).inputValue(),
+      "37.5",
+    );
+    await d.getByText("All $100.00 assigned.", { exact: true }).waitFor();
+    console.log(
+      "PASS custom AI split accepts ordered fractions and applies exact amounts",
+    );
+    await d.getByRole("button", { name: "Save", exact: true }).click();
+    await visible();
+    assert.deepEqual(
+      (
+        await db.query(
+          `SELECT tm.display_name, ta.amount::float8 amount
+             FROM transaction_adjustments ta
+             JOIN transactions tx ON tx.id=ta.transaction_id
+             JOIN trip_members tm ON tm.id=ta.member_id
+            WHERE tx.description='Fractional custom split'
+            ORDER BY tm.display_name`,
+        )
+      ).rows,
+      [
+        { display_name: "Alex", amount: 37.5 },
+        { display_name: "Priya", amount: 37.5 },
+        { display_name: "Sam", amount: 25 },
+      ],
     );
 
     // The next trip copies names only. This is the same destination used by the settlement CTA.

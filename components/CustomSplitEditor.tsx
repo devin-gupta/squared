@@ -74,7 +74,7 @@ export default function CustomSplitEditor({
           ...(await aiRequestHeaders()),
         },
         body: JSON.stringify({
-          text: `Split a total of ${currency} ${totalAmount.toFixed(2)}. All amounts are in ${currency}: ${instructions}`,
+          text: `Create a custom split for a total of ${currency} ${totalAmount.toFixed(2)}. Members in order: ${members.map((member) => member.name).join(", ")}. Assign unnamed shares in that order. The user may use amounts, percentages, fractions, or ratios. User instructions: ${instructions}`,
           tripId,
         }),
       });
@@ -114,10 +114,10 @@ export default function CustomSplitEditor({
   };
   return (
     <fieldset className="rounded-2xl border border-[#e1e5dc] bg-[#f8faf5] p-4">
-      <legend className="px-1 text-sm font-semibold">Custom amounts</legend>
+      <legend className="px-1 text-sm font-semibold">Custom split</legend>
       <p className="muted mb-3 text-xs">
-        Enter each person’s share in {currency}. Use {prefix}0 for anyone who
-        didn’t take part.
+        Enter each person’s amount in {currency}, or describe percentages and
+        fractions below. Use {prefix}0 for anyone who didn’t take part.
       </p>
       <button
         type="button"
@@ -188,7 +188,7 @@ export default function CustomSplitEditor({
             aria-expanded={showInstructions}
             className="min-h-11 text-xs font-medium underline underline-offset-4"
           >
-            Describe the split instead
+            Describe with amounts, % or fractions
           </button>
           {showInstructions && (
             <div className="space-y-3">
@@ -196,7 +196,8 @@ export default function CustomSplitEditor({
                 htmlFor={`${groupId}-instructions`}
                 className="block text-xs text-[#5e6b5f]"
               >
-                For example: Alex owes {prefix}20, split the rest equally.
+                For example: Alex owes {prefix}20, split the rest equally; or
+                1/4th, 3/8th, 3/8th in member order.
               </label>
               <textarea
                 id={`${groupId}-instructions`}

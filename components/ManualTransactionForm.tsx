@@ -34,8 +34,9 @@ export default function ManualTransactionForm({
   writer.current = draftContext?.update;
   const locked = !!draftContext?.draft?.submission;
   const [participants, setParticipants] = useState(
-    initialData?.participants?.filter((n) => memberNames.includes(n)) ||
-      memberNames,
+    initialData?.participants?.length
+      ? initialData.participants.filter((n) => memberNames.includes(n))
+      : memberNames,
   );
   const [category, setCategory] = useState(
     normalizeCategory(initialData?.category),
