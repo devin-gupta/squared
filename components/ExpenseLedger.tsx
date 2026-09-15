@@ -5,6 +5,12 @@ import Link from "next/link";
 import TransactionCard, { DisplayTransaction, money } from "./TransactionCard";
 import Icon from "./Icon";
 import { expenseCsv } from "@/lib/transactions/export";
+import {
+  expenseMatchesCategory,
+  expenseMatchesDateRange,
+  expenseMatchesSearch,
+} from "@/lib/transactions/search";
+import { CATEGORIES } from "@/lib/categories";
 
 export default function ExpenseLedger({
   transactions,
@@ -26,14 +32,18 @@ export default function ExpenseLedger({
   members?: Array<{ id: string; display_name: string }>;
 }) {
   const [query, setQuery] = useState("");
+  const [category, setCategory] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const filtered = useMemo(
     () =>
-      transactions.filter((t) =>
-        `${t.description} ${t.payer?.display_name || ""}`
-          .toLowerCase()
-          .includes(query.trim().toLowerCase()),
+      transactions.filter(
+        (transaction) =>
+          expenseMatchesSearch(transaction, members, query) &&
+          expenseMatchesCategory(transaction, category) &&
+          expenseMatchesDateRange(transaction, fromDate, toDate),
       ),
-    [transactions, query],
+    [transactions, members, query, category, fromDate, toDate],
   );
   const exportCsv = () => {
     const url = URL.createObjectURL(
@@ -82,20 +92,64 @@ export default function ExpenseLedger({
               total shown
             </p>
           </div>
-          <div className="relative w-full sm:w-64">
-            <Icon
-              name="search"
-              width="16"
-              className="pointer-events-none absolute left-3 top-3.5 text-[#58664f]"
-            />
-            <input
-              type="search"
-              aria-label="Search expenses or payer"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search expenses or payer"
-              className="w-full !pl-9 !text-sm"
-            />
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <div className="relative w-full sm:w-64">
+              <Icon
+                name="search"
+                width="16"
+                className="pointer-events-none absolute left-3 top-3.5 text-[#58664f]"
+              />
+              <input
+                type="search"
+                aria-label="Search expenses or payee"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search expenses or payee"
+                className="w-full !pl-9 !text-sm"
+              />
+            </div>
+            <select
+              aria-label="Filter expenses by category"
+              value={category}
+              onChange={(event) => setCategory(event.target.value)}
+              className="w-full !text-sm sm:w-56"
+            >
+              <option value="">All categories</option>
+              {CATEGORIES.map(([code, label]) => (
+                <option key={code} value={code}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            <details className="w-full text-sm sm:w-auto">
+              <summary className="btn-secondary flex min-h-[44px] cursor-pointer list-none items-center justify-center whitespace-nowrap px-4 [&::-webkit-details-marker]:hidden">
+                Date{fromDate || toDate ? " · active" : ""}
+              </summary>
+              <div className="mt-2 grid grid-cols-2 gap-2 sm:min-w-72">
+                <label className="muted text-xs">
+                  From
+                  <input
+                    type="date"
+                    aria-label="Expenses from date"
+                    value={fromDate}
+                    max={toDate || undefined}
+                    onChange={(event) => setFromDate(event.target.value)}
+                    className="mt-1 w-full !text-sm"
+                  />
+                </label>
+                <label className="muted text-xs">
+                  To
+                  <input
+                    type="date"
+                    aria-label="Expenses to date"
+                    value={toDate}
+                    min={fromDate || undefined}
+                    onChange={(event) => setToDate(event.target.value)}
+                    className="mt-1 w-full !text-sm"
+                  />
+                </label>
+              </div>
+            </details>
           </div>
         </div>
         {loading ? (
@@ -125,19 +179,26 @@ export default function ExpenseLedger({
               <Icon name="ledger" />
             </span>
             <h3 className="font-medium">
-              {query ? "No matching expenses" : "Your story starts here."}
+              {query || category || fromDate || toDate
+                ? "No matching expenses"
+                : "Your story starts here."}
             </h3>
             <p className="muted">
-              {query
-                ? "Try another description or person’s name."
+              {query || category || fromDate || toDate
+                ? "Try another description, payee, category, or date range."
                 : "Add an expense to start your shared ledger."}
             </p>
-            {query ? (
+            {query || category || fromDate || toDate ? (
               <button
                 className="btn-secondary mt-2"
-                onClick={() => setQuery("")}
+                onClick={() => {
+                  setQuery("");
+                  setCategory("");
+                  setFromDate("");
+                  setToDate("");
+                }}
               >
-                Clear search
+                Clear filters
               </button>
             ) : (
               <Link href={basePath || "/"} className="btn-primary mt-2">
