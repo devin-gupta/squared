@@ -36,7 +36,7 @@ export default function StartTripModal({
       requestId.current = crypto.randomUUID();
       setError(null);
     }
-  }, [isOpen, defaultUserName]);
+  }, [isOpen, defaultUserName, defaultNames]);
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (submitting || !tripName.trim() || !userName.trim()) return;
